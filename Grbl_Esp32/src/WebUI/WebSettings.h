@@ -29,6 +29,8 @@ namespace WebUI {
     extern IPaddrSetting* wifi_sta_ip;
     extern IPaddrSetting* wifi_sta_gateway;
     extern IPaddrSetting* wifi_sta_netmask;
+    extern IntSetting*    wifi_sta_retry_count;
+    extern IntSetting*    wifi_sta_connect_timeout;
 
     extern StringSetting* wifi_ap_ssid;
     extern StringSetting* wifi_ap_password;

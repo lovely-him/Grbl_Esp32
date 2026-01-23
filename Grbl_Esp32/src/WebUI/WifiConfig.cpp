@@ -235,84 +235,117 @@ namespace WebUI {
 
     /*
      * Connect client to AP
+     * Waits for connection to complete or fail
+     * Returns true if connected, false otherwise
      */
 
     bool WiFiConfig::ConnectSTA2AP() {
-        String      msg, msg_out;
-        uint8_t     count  = 0;
-        uint8_t     dot    = 0;
-        wl_status_t status = WiFi.status();
-        while (status != WL_CONNECTED && count < 40) {
-            switch (status) {
-                case WL_NO_SSID_AVAIL:
-                    msg = "No SSID";
-                    break;
-                case WL_CONNECT_FAILED:
-                    msg = "Connection failed";
-                    break;
-                case WL_CONNECTED:
-                    break;
-                default:
-                    if ((dot > 3) || (dot == 0)) {
-                        dot     = 0;
-                        msg_out = "Connecting";
-                    }
-                    msg_out += ".";
-                    msg = msg_out;
-                    dot++;
-                    break;
+        int32_t timeout_ms = wifi_sta_connect_timeout->get();
+        int32_t wait_interval_ms = 500;
+        int32_t max_iterations = timeout_ms / wait_interval_ms;
+
+        String      msg_out;
+        uint8_t     dot = 0;
+
+        for (int32_t i = 0; i < max_iterations; i++) {
+            wl_status_t status = WiFi.status();
+
+            // Connection failed - exit immediately
+            if (status == WL_NO_SSID_AVAIL) {
+                grbl_send(CLIENT_ALL, "[MSG:No SSID available]\r\n");
+                // return false;
             }
-            grbl_sendf(CLIENT_ALL, "[MSG:%s]\r\n", msg.c_str());
-            COMMANDS::wait(500);
-            count++;
-            status = WiFi.status();
+            if (status == WL_CONNECT_FAILED) {
+                grbl_send(CLIENT_ALL, "[MSG:Connection failed]\r\n");
+                // return false;
+            }
+            // Connection successful
+            if (status == WL_CONNECTED) {
+                return true;
+            }
+
+            // Still connecting - show progress
+            if ((dot > 3) || (dot == 0)) {
+                dot     = 0;
+                msg_out = "Connecting";
+            }
+            msg_out += ".";
+            grbl_sendf(CLIENT_ALL, "[MSG:%s]\r\n", msg_out.c_str());
+            dot++;
+
+            COMMANDS::wait(wait_interval_ms);
         }
-        return status == WL_CONNECTED;
+
+        // Timeout
+        grbl_send(CLIENT_ALL, "[MSG:Connection timeout]\r\n");
+        return false;
     }
 
     /*
      * Start client mode (Station)
+     * Implements retry logic with configurable retry count
      */
 
     bool WiFiConfig::StartSTA() {
-        //stop active service
-        wifi_services.end();
-        //Sanity check
-        if ((WiFi.getMode() == WIFI_STA) || (WiFi.getMode() == WIFI_AP_STA)) {
+        int32_t retry_count = wifi_sta_retry_count->get();
+        for (int32_t attempt = 1; attempt <= retry_count; attempt++) {
+            //stop active service
+            wifi_services.end();
+            //Sanity check
+            if ((WiFi.getMode() == WIFI_STA) || (WiFi.getMode() == WIFI_AP_STA)) {
+                WiFi.disconnect(true);
+            }
+            if ((WiFi.getMode() == WIFI_AP) || (WiFi.getMode() == WIFI_AP_STA)) {
+                WiFi.softAPdisconnect();
+            }
+            WiFi.enableAP(false);
+            WiFi.mode(WIFI_STA);
+            //Get parameters for STA
+            String h = wifi_hostname->get();
+            WiFi.setHostname(h.c_str());
+            //SSID
+            String SSID = wifi_sta_ssid->get();
+            if (SSID.length() == 0) {
+                SSID = DEFAULT_STA_SSID;
+            }
+            //password
+            String  password = wifi_sta_password->get();
+            int8_t  IP_mode  = wifi_sta_mode->get();
+            int32_t IP       = wifi_sta_ip->get();
+            int32_t GW       = wifi_sta_gateway->get();
+            int32_t MK       = wifi_sta_netmask->get();
+
+            // grbl_sendf(CLIENT_ALL, "\n[MSG:Client Started] \r\n"
+            //     "h=%s, SSID=%s, password=%s, IP_mode=0x%02X, IP=0x%08X, GW=0x%08X, MK=0x%08X, \r\n",
+            //     h.c_str(), SSID.c_str(), password.c_str(), IP_mode, IP, GW, MK);
+
+            grbl_sendf(CLIENT_ALL, "[MSG:Connecting %s (attempt %d/%d)]\r\n", SSID.c_str(), attempt, retry_count);
+
+            //if not DHCP
+            if (IP_mode != DHCP_MODE) {
+                IPAddress ip(IP), mask(MK), gateway(GW);
+                WiFi.config(ip, gateway, mask);
+            }
+            if (WiFi.begin(SSID.c_str(), (password.length() > 0) ? password.c_str() : NULL)) {
+                COMMANDS::wait(200);
+
+                if (ConnectSTA2AP()) {
+                    return true;
+                }
+            } else {
+                grbl_send(CLIENT_ALL, "[MSG:WiFi.begin() failed]\r\n");
+            }
+
             WiFi.disconnect();
+            COMMANDS::wait(200);
+
+            if (attempt < retry_count) {
+                grbl_send(CLIENT_ALL, "[MSG:Retrying in 3 second...]\r\n");
+                COMMANDS::wait(600+2000);  // 200 + 600 = 800ms total delay
+            }
         }
-        if ((WiFi.getMode() == WIFI_AP) || (WiFi.getMode() == WIFI_AP_STA)) {
-            WiFi.softAPdisconnect();
-        }
-        WiFi.enableAP(false);
-        WiFi.mode(WIFI_STA);
-        //Get parameters for STA
-        String h = wifi_hostname->get();
-        WiFi.setHostname(h.c_str());
-        //SSID
-        String SSID = wifi_sta_ssid->get();
-        if (SSID.length() == 0) {
-            SSID = DEFAULT_STA_SSID;
-        }
-        //password
-        String  password = wifi_sta_password->get();
-        int8_t  IP_mode  = wifi_sta_mode->get();
-        int32_t IP       = wifi_sta_ip->get();
-        int32_t GW       = wifi_sta_gateway->get();
-        int32_t MK       = wifi_sta_netmask->get();
-        //if not DHCP
-        if (IP_mode != DHCP_MODE) {
-            IPAddress ip(IP), mask(MK), gateway(GW);
-            WiFi.config(ip, gateway, mask);
-        }
-        if (WiFi.begin(SSID.c_str(), (password.length() > 0) ? password.c_str() : NULL)) {
-            grbl_send(CLIENT_ALL, "\n[MSG:Client Started]\r\n");
-            grbl_sendf(CLIENT_ALL, "[MSG:Connecting %s]\r\n", SSID.c_str());
-            return ConnectSTA2AP();
-        } else {
-            grbl_send(CLIENT_ALL, "[MSG:Starting client failed]\r\n");
-            return false;
-        }
+
+        return false;
     }
 
     /**
@@ -401,7 +434,8 @@ namespace WebUI {
             wifi_services.begin();
         } else if (wifiMode == ESP_WIFI_STA) {
             if (!StartSTA()) {
-                grbl_sendf(CLIENT_ALL, "[MSG:Cannot connect to %s]\r\n", wifi_sta_ssid->get());
+                // STA connection failed after all retries, switch to AP mode
+                grbl_send(CLIENT_ALL, "[MSG:Switching to AP mode]\r\n");
                 StartAP();
             }
             //start services

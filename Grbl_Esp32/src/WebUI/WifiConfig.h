@@ -61,6 +61,8 @@ namespace WebUI {
     static const int   DEFAULT_TELNETSERVER_PORT = 23;
     static const int   DEFAULT_TELNET_STATE      = 1;
     static const int   DEFAULT_STA_IP_MODE       = DHCP_MODE;
+    static const int   DEFAULT_STA_RETRY_COUNT   = 3;
+    static const int   DEFAULT_STA_CONNECT_TIMEOUT_MS = 10000;
     static const char* HIDDEN_PASSWORD           = "********";
     static const char* DEFAULT_TOKEN             = "";
     static const int   DEFAULT_NOTIFICATION_TYPE = 0;
@@ -80,6 +82,10 @@ namespace WebUI {
     static const int MIN_TELNET_PORT                 = 1;
     static const int MIN_CHANNEL                     = 1;
     static const int MAX_CHANNEL                     = 14;
+    static const int MIN_STA_RETRY_COUNT             = 1;
+    static const int MAX_STA_RETRY_COUNT             = 10;
+    static const int MIN_STA_CONNECT_TIMEOUT_MS      = 10000;
+    static const int MAX_STA_CONNECT_TIMEOUT_MS      = 300000;
     static const int MIN_NOTIFICATION_TOKEN_LENGTH   = 0;
     static const int MAX_NOTIFICATION_TOKEN_LENGTH   = 63;
     static const int MAX_NOTIFICATION_SETTING_LENGTH = 127;

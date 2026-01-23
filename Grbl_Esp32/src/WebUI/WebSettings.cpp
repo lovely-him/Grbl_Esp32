@@ -42,6 +42,8 @@ namespace WebUI {
     IPaddrSetting* wifi_sta_ip;
     IPaddrSetting* wifi_sta_gateway;
     IPaddrSetting* wifi_sta_netmask;
+    IntSetting*    wifi_sta_retry_count;
+    IntSetting*    wifi_sta_connect_timeout;
 
     StringSetting* wifi_ap_ssid;
     StringSetting* wifi_ap_password;
@@ -1213,6 +1215,24 @@ namespace WebUI {
                                           MIN_SSID_LENGTH,
                                           MAX_SSID_LENGTH,
                                           (bool (*)(char*))WiFiConfig::isSSIDValid);
+        wifi_sta_retry_count = new IntSetting("Station Retry Count",
+                                              WEBSET,
+                                              WA,
+                                              NULL,
+                                              "Sta/RetryCount",
+                                              DEFAULT_STA_RETRY_COUNT,
+                                              MIN_STA_RETRY_COUNT,
+                                              MAX_STA_RETRY_COUNT,
+                                              NULL);
+        wifi_sta_connect_timeout = new IntSetting("Station Connect Timeout (ms)",
+                                                  WEBSET,
+                                                  WA,
+                                                  NULL,
+                                                  "Sta/ConnectTimeout",
+                                                  DEFAULT_STA_CONNECT_TIMEOUT_MS,
+                                                  MIN_STA_CONNECT_TIMEOUT_MS,
+                                                  MAX_STA_CONNECT_TIMEOUT_MS,
+                                                  NULL);
 #endif
     }
 }

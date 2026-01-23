@@ -1,0 +1,332 @@
+[MSG:Restart ongoing]
+ok
+ok
+[MSG:Disconnected]
+ets Jul 29 2019 12:21:46
+
+rst:0xc (SW_CPU_RESET),boot:0x17 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:1
+load:0x3fff0018,len:4
+load:0x3fff001c,len:1216
+ho 0 tail 12 room 4
+load:0x40078000,len:9720
+ho 0 tail 12 room 4
+load:0x40080400,len:6352
+entry 0x400806b8
+
+[MSG:Grbl_ESP32 Ver 1.3a Date 20211103]
+[MSG:Compiled with ESP32 SDK:v3.2.3-14-gd3e562907]
+[MSG:Using machine:Genmitsu_Kiosk_C_V07_HIM]
+[MSG:Axis count 3]
+[MSG:RMT Steps]
+[MSG:Door switch on pin GPIO(17)]
+[MSG:Init Motors]
+[MSG:X  Axis Standard Stepper Step:GPIO(33) Dir:GPIO(32) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Y  Axis Standard Stepper Step:GPIO(26) Dir:GPIO(25) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Z  Axis Standard Stepper Step:GPIO(5) Dir:GPIO(18) Disable:GPIO(27) Limits(0.000,1000.000)]
+[MSG:Laser spindle on Pin:GPIO(21), Enbl:None, Freq:5000Hz, Res:13bits Laser mode:On]
+
+[MSG:Client Started]
+[MSG:Connecting MT3000]
+[MSG:Connecting.]
+[MSG:Connecting..]
+[MSG:Connecting...]
+[MSG:Connecting....]
+[MSG:Connecting.]
+[MSG:Connecting..]
+[MSG:Connecting...]
+[MSG:Connecting....]
+[MSG:Connecting.]
+[MSG:Connecting..]
+[MSG:Connected with 192.168.8.177]
+[MSG:Start mDNS with hostname:http://grblesp.local/]
+[MSG:SSDP Started]
+[MSG:HTTP Started]
+[MSG:TELNET Started 8080]
+[MSG:Mist coolant on pin GPIO(16)]
+[MSG:X  Axis limit switch on pin GPIO(36)]
+[MSG:Y  Axis limit switch on pin GPIO(35)]
+
+Grbl 1.3a ['$' for help]
+$0=3
+$1=250
+$2=0
+$3=0
+$4=0
+$5=0
+$6=0
+$10=1
+$11=0.010
+$12=0.002
+$13=0
+$20=0
+$21=0
+$22=0
+$23=7
+$24=200.000
+$25=2000.000
+$26=250.000
+$27=1.000
+$30=1000.000
+$31=0.000
+$32=1
+$100=100.000
+$101=100.000
+$102=100.000
+$103=100.000
+$104=100.000
+$105=100.000
+$110=1000.000
+$111=1000.000
+$112=1000.000
+$113=1000.000
+$114=1000.000
+$115=1000.000
+$120=200.000
+$121=200.000
+$122=200.000
+$123=200.000
+$124=200.000
+$125=200.000
+$130=100.000
+$131=100.000
+$132=1000.000
+$133=300.000
+$134=300.000
+$135=300.000
+ok
+ok
+[G54:0.000,0.000,0.000]
+[G55:0.000,0.000,0.000]
+[G56:0.000,0.000,0.000]
+[G57:0.000,0.000,0.000]
+[G58:0.000,0.000,0.000]
+[G59:0.000,0.000,0.000]
+[G28:0.000,0.000,0.000]
+[G30:0.000,0.000,0.000]
+[G92:0.000,0.000,0.000]
+[TLO:0.000]
+[PRB:0.000,0.000,0.000:0]
+ok
+ok
+[GC:G0 G54 G17 G21 G90 G94 M5 M9 T0 F0 S0]
+ok
+ok
+[VER:1.3a.20211103:]
+[OPT:MPHBSW]
+[MSG:Using machine:Genmitsu_Kiosk_C_V07_HIM]
+[MSG:Mode=STA:SSID=MT3000:Status=Connected:IP=192.168.8.177:MAC=88-57-21-C4-E1-84]
+[MSG:No BT]
+ok
+ok
+{"EEPROM":[
+    {"F":"network",
+      "P":"Sta/SSID",
+      "H":"Station SSID",
+      "T":"S",
+      "V":"MT3000",
+      "S":"32",
+      "M":"1"
+    },
+    {"F":"network",
+      "P":"Sta/Password",
+      "H":"Station Password",
+      "T":"S",
+      "V":"******",
+      "S":"64",
+      "M":"8"
+    },
+    {"F":"network",
+      "P":"Sta/IPMode",
+      "H":"Station IP Mode",
+      "T":"B",
+      "V":"0",
+      "O":[
+        {"DHCP":"0"},
+        {"Static":"1"}
+      ]
+    },
+    {"F":"network",
+      "P":"Sta/IP",
+      "H":"Station Static IP",
+      "T":"A",
+      "V":"0.0.0.0"
+    },
+    {"F":"network",
+      "P":"Sta/Gateway",
+      "H":"Station Static Gateway",
+      "T":"A",
+      "V":"0.0.0.0"
+    },
+    {"F":"network",
+      "P":"Sta/Netmask",
+      "H":"Station Static Mask",
+      "T":"A",
+      "V":"0.0.0.0"
+    },
+    {"F":"network",
+      "P":"AP/SSID",
+      "H":"AP SSID",
+      "T":"S",
+      "V":"GRBL_ESP",
+      "S":"32",
+      "M":"1"
+    },
+    {"F":"network",
+      "P":"AP/Password",
+      "H":"AP Password",
+      "T":"S",
+      "V":"******",
+      "S":"64",
+      "M":"8"
+    },
+    {"F":"network",
+      "P":"AP/IP",
+      "H":"AP Static IP",
+      "T":"A",
+      "V":"192.168.0.1"
+    },
+    {"F":"network",
+      "P":"AP/Channel",
+      "H":"AP Channel",
+      "T":"I",
+      "V":"1",
+      "S":"14",
+      "M":"1"
+    },
+    {"F":"network",
+      "P":"System/Hostname",
+      "H":"Hostname",
+      "T":"S",
+      "V":"grblesp",
+      "S":"32",
+      "M":"1"
+    },
+    {"F":"network",
+      "P":"Http/Enable",
+      "H":"HTTP Enable",
+      "T":"B",
+      "V":"1",
+      "O":[
+        {"OFF":"0"},
+        {"ON":"1"}
+      ]
+    },
+    {"F":"network",
+      "P":"Http/Port",
+      "H":"HTTP Port",
+      "T":"I",
+      "V":"80",
+      "S":"65001",
+      "M":"1"
+    },
+    {"F":"network",
+      "P":"Telnet/Enable",
+      "H":"Telnet Enable",
+      "T":"B",
+      "V":"1",
+      "O":[
+        {"OFF":"0"},
+        {"ON":"1"}
+      ]
+    },
+    {"F":"network",
+      "P":"Telnet/Port",
+      "H":"Telnet Port",
+      "T":"I",
+      "V":"8080",
+      "S":"65001",
+      "M":"1"
+    },
+    {"F":"network",
+      "P":"Radio/Mode",
+      "H":"Radio mode",
+      "T":"B",
+      "V":"1",
+      "O":[
+        {"AP":"2"},
+        {"BT":"3"},
+        {"NONE":"0"},
+        {"STA":"1"}
+      ]
+    },
+    {"F":"network",
+      "P":"Bluetooth/Name",
+      "H":"Bluetooth name",
+      "T":"S",
+      "V":"btgrblesp",
+      "S":"32",
+      "M":"1"
+    },
+    {"F":"network",
+      "P":"Notification/Type",
+      "H":"Notification type",
+      "T":"B",
+      "V":"0",
+      "O":[
+        {"EMAIL":"2"},
+        {"LINE":"3"},
+        {"NONE":"0"},
+        {"PUSHOVER":"1"}
+      ]
+    },
+    {"F":"network",
+      "P":"Notification/T1",
+      "H":"Notification Token 1",
+      "T":"S",
+      "V":"",
+      "S":"63",
+      "M":"0"
+    },
+    {"F":"network",
+      "P":"Notification/T2",
+      "H":"Notification Token 2",
+      "T":"S",
+      "V":"",
+      "S":"63",
+      "M":"0"
+    },
+    {"F":"network",
+      "P":"Notification/TS",
+      "H":"Notification Settings",
+      "T":"S",
+      "V":"",
+      "S":"127",
+      "M":"0"
+    }
+  ]}ok
+ok
+Chip ID: 34017
+CPU Frequency: 240Mhz
+CPU Temperature: 31.1C
+Free memory: 97.97 KB
+SDK: v3.2.3-14-gd3e562907
+Flash Size: 8.00 MB
+Baud rate: 0
+Sleep mode: Modem
+Available Size for update: 1.87 MB
+Available Size for SPIFFS: 169.38 KB
+Web port: 80
+Data port: 8080
+Hostname: grblesp
+Current WiFi Mode: STA (88:57:21:C4:E1:84)
+Connected to: MT3000
+Signal: 100%
+Phy Mode: 11n
+Channel: 3
+IP Mode: DHCP
+IP: 192.168.8.177
+Gateway: 192.168.8.1
+Mask: 255.255.255.0
+DNS: 192.168.8.1
+Disabled Mode: AP (88:57:21:C4:E1:85)
+Current BT Mode: Off
+Notifications: Disabled
+FW version: 1.3a (20211103) (ESP32)
+ok
+ok
+FW version:1.3a (20211103) # FW target:grbl-embedded  # FW HW:Direct SD  # primary sd:/sd # secondary sd:none # authentication:no # webcommunication: Sync: 81:192.168.8.177 # hostname:grblesp # axis:3
+ok
+ok
