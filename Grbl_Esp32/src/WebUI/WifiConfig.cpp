@@ -209,6 +209,21 @@ namespace WebUI {
 
     void WiFiConfig::WiFiEvent(WiFiEvent_t event) {
         switch (event) {
+            case SYSTEM_EVENT_STA_START:
+                // 在 WiFi STA 启动后设置主机名 (关键时机!)
+                // 此时 LwIP 网络接口已初始化, 可以安全设置主机名
+                // https://cloud.tencent.com/developer/ask/sof/116024168
+                {
+                    // String h = wifi_hostname->get();
+                    // WiFi.setHostname(h.c_str());
+                    const char* c_str = MACHINE_NAME;
+                    if (WiFi.setHostname(c_str)) {
+                        grbl_sendf(CLIENT_ALL, "[MSG:Hostname set to: %s]\r\n", c_str);
+                    } else {
+                        grbl_sendf(CLIENT_ALL, "[MSG:Failed to set hostname: %s]\r\n", c_str);
+                    }
+                }
+                break;
             case SYSTEM_EVENT_STA_GOT_IP:
                 grbl_sendf(CLIENT_ALL, "[MSG:Connected with %s]\r\n", WiFi.localIP().toString().c_str());
                 break;
@@ -300,9 +315,33 @@ namespace WebUI {
             }
             WiFi.enableAP(false);
             WiFi.mode(WIFI_STA);
-            //Get parameters for STA
-            String h = wifi_hostname->get();
-            WiFi.setHostname(h.c_str());
+
+            // 生成随机 MAC 地址
+            if (1) {
+                // 读取基础 MAC
+                uint8_t random_mac[6];
+                esp_read_mac(random_mac, ESP_MAC_WIFI_STA);
+                grbl_sendf(CLIENT_ALL, "[MSG:Fixed MAC get: %s]\r\n", mac2str(random_mac));
+
+                // 设置本地管理位（bit 1 of first byte = 1）
+                random_mac[0] |= 0x02;
+                // 清除多播位（bit 0 of first byte = 0）
+                random_mac[0] &= 0xFE;
+
+                // 随机化后三个字节
+                for (int i = 3; i < 6; i++) {
+                    random_mac[i] = (uint8_t)(esp_random() & 0xFF);
+                }
+
+                // 设置随机 MAC 地址
+                esp_err_t err = esp_wifi_set_mac(WIFI_IF_STA, random_mac);
+                if (err == ESP_OK) {
+                    grbl_sendf(CLIENT_ALL, "[MSG:Random MAC set: %s]\r\n", mac2str(random_mac));
+                } else {
+                    grbl_sendf(CLIENT_ALL, "[MSG:Failed to set random MAC (error: %d)]\r\n", err);
+                }
+            }
+
             //SSID
             String SSID = wifi_sta_ssid->get();
             if (SSID.length() == 0) {

@@ -122,6 +122,7 @@ enum class LEDState {
     ALARM,              // 警告状态（Alarm）
     SAFETY_DOOR,        // 安全门/倾斜保护
     CYCLE,              // 雕刻状态（呼吸灯）
+    WIFI_STA_CONNECTING,// WiFi 连接中
     IDLE,               // 待机模式（常亮）
 };
 
@@ -129,12 +130,28 @@ enum class LEDState {
 // 全局变量
 // ============================================================================
 
+// 系统状态名称
+static const char* sys_state_names[] = {
+    "Idle",         // Must be zero.
+    "Alarm",        // In alarm state. Locks out all g-code processes. Allows settings access.
+    "CheckMode",    // G-code check mode. Locks out planner and motion only.
+    "Homing",       // Performing homing cycle
+    "Cycle",        // Cycle is running or motions are being executed.
+    "Hold",         // Active feed hold
+    "Jog",          // Jogging mode.
+    "SafetyDoor",   // Safety door is ajar. Feed holds and de-energizes system.
+    "Sleep",        // Sleep state.
+};
+
 // PWM 输出对象
 static UserOutput::AnalogOutput* led_output = nullptr;
 static UserOutput::AnalogOutput* fan_output = nullptr;
 
 // QMI8658A 倾斜传感器对象
 static QMI8658 imu;
+
+// 循环任务时间
+#define LOOP_TASK_PERIOD_MS (20)
 
 // PWM 配置
 #define PWM_FREQ_SHARED     (25000)     // 25kHz 共享频率（超声波范围，完全静音）
@@ -363,7 +380,7 @@ bool check_tilt_sensor(uint8_t debug_log) {
     }
 
     if (valid_samples < 4) {
-        LOG_ERROR(TAG_TILT, "valid_samples = %d", valid_samples);
+        LOG_ERROR(TAG_TILT, "sensor valid samples : %d", valid_samples);
         consecutive_failures++;
         if (consecutive_failures >= MAX_CONSECUTIVE_FAILURES) {
             LOG_INFO(TAG_TILT, "Consecutive failures: %d, attempting re-initialization", consecutive_failures);
@@ -661,7 +678,7 @@ void button_monitor_task(void* parameter) {
                 break;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(50));
+        vTaskDelay(pdMS_TO_TICKS(LOOP_TASK_PERIOD_MS));
     }
 }
 
@@ -701,6 +718,145 @@ void set_fan_speed(uint8_t percent) {
 // LED 和风扇控制模块
 // ============================================================================
 
+// 三角波呼吸灯（Gamma 校正，符合人眼感知）
+void set_led_breath() {
+    if (!led_output) {
+        return;
+    }
+
+    uint32_t cycle_time = 2000;
+    uint32_t phase = millis() % cycle_time;
+
+    // 计算线性亮度值 (0.0 - 1.0)
+    float linear_brightness;
+    if (phase < cycle_time / 2) {
+        linear_brightness = (float)phase / (cycle_time / 2);
+    } else {
+        linear_brightness = 1.0f - (float)(phase - cycle_time / 2) / (cycle_time / 2);
+    }
+
+    // Gamma 校正 (Gamma = 2.5，适合 LED 呼吸灯)
+    // 公式: perceived_brightness = linear_brightness ^ gamma
+    float gamma_corrected = pow(linear_brightness, 2.5f);
+    uint8_t brightness_percent = (uint8_t)(gamma_corrected * 100.0f);
+
+    set_led_brightness(brightness_percent);
+}
+
+// 多段式闪烁模式（状态机实现，确保每个时间段都被完整执行）
+// pattern 格式: {时长1, 亮度1, 时长2, 亮度2, ...}
+// 例如: {50, 0, 1950, 50} 表示灭50ms, 亮1950ms
+void set_led_pattern(const uint32_t* pattern, uint8_t pattern_length) {
+    if (!led_output || pattern_length < 2 || pattern_length % 2 != 0) {
+        return;
+    }
+
+    static const uint32_t* current_pattern = nullptr;
+    static uint8_t current_pattern_length = 0;
+    static uint8_t current_segment_index = 0;
+    static uint32_t segment_start_time = 0;
+
+    // 检测模式切换
+    if (pattern != current_pattern || pattern_length != current_pattern_length) {
+        current_pattern = pattern;
+        current_pattern_length = pattern_length;
+        current_segment_index = 0;
+        segment_start_time = millis();
+    }
+
+    // 检查是否需要切换到下一个时间段
+    uint32_t now = millis();
+    uint32_t elapsed = now - segment_start_time;
+    uint32_t segment_duration = pattern[current_segment_index];
+
+    if (elapsed >= segment_duration) {
+        // 切换到下一个时间段
+        current_segment_index += 2;
+        if (current_segment_index >= pattern_length) {
+            current_segment_index = 0;  // 循环到第一个时间段
+        }
+        segment_start_time = now;
+    }
+
+    // 设置当前时间段的亮度
+    uint8_t brightness = pattern[current_segment_index + 1];
+    set_led_brightness(brightness);
+}
+
+// LED 自动控制逻辑
+void update_led_auto_control() {
+    // LED 闪烁模式定义（函数内部 static const，遵循最小作用域）
+    // ALARM: 闪烁1次 (灭50ms, 亮1950ms, 总周期2000ms)
+    static const uint32_t LED_PATTERN_ALARM[] = {100, LED_PER_OFF, 1900, LED_PER_ON};
+    static const uint8_t LED_PATTERN_ALARM_LEN = sizeof(LED_PATTERN_ALARM) / sizeof(uint32_t);
+
+    // SAFETY_DOOR: 闪烁2次 (灭50ms, 亮50ms, 灭50ms, 亮1850ms, 总周期2000ms)
+    static const uint32_t LED_PATTERN_SAFETY_DOOR[] = {100, LED_PER_OFF, 100, LED_PER_ON, 100, LED_PER_OFF, 1700, LED_PER_ON};
+    static const uint8_t LED_PATTERN_SAFETY_DOOR_LEN = sizeof(LED_PATTERN_SAFETY_DOOR) / sizeof(uint32_t);
+
+    // WIFI_STA_CONNECTING: 等间隔闪烁 (灭1000ms, 亮1000ms, 总周期2000ms)
+    static const uint32_t LED_PATTERN_WIFI_CONNECTING[] = {500, LED_PER_OFF, 500, LED_PER_ON};
+    static const uint8_t LED_PATTERN_WIFI_CONNECTING_LEN = sizeof(LED_PATTERN_WIFI_CONNECTING) / sizeof(uint32_t);
+
+    static State current_sys_state = State::Idle;
+    LEDState new_state = LEDState::ALARM;
+
+    switch (sys.state) {
+        case State::Alarm:
+            new_state = LEDState::ALARM;
+            break;
+
+        case State::SafetyDoor:
+            new_state = LEDState::SAFETY_DOOR;
+            break;
+
+        case State::Cycle:
+            new_state = LEDState::CYCLE;
+            break;
+
+        case State::Idle:
+        case State::Hold:
+        case State::Homing:
+        case State::Jog:
+        case State::CheckMode:
+        case State::Sleep:
+            new_state = LEDState::IDLE;
+            break;
+    }
+
+    // 后置判断：WiFi 连接状态优先级最高（覆盖所有状态）
+    wifi_mode_t wifi_mode = WiFi.getMode();
+    if (wifi_mode == WIFI_STA || wifi_mode == WIFI_AP_STA) {
+        if (WiFi.status() != WL_CONNECTED) {
+            new_state = LEDState::WIFI_STA_CONNECTING;
+        }
+    }
+
+    if (current_sys_state != sys.state) {
+        LOG_INFO(TAG_LED, "State: %s -> %s", sys_state_names[(int)current_sys_state], sys_state_names[(int)sys.state]);
+        current_sys_state = sys.state;
+    }
+
+    switch (new_state) {
+        case LEDState::ALARM:
+            set_led_pattern(LED_PATTERN_ALARM, LED_PATTERN_ALARM_LEN);
+            break;
+        case LEDState::SAFETY_DOOR:
+            set_led_pattern(LED_PATTERN_SAFETY_DOOR, LED_PATTERN_SAFETY_DOOR_LEN);
+            break;
+        case LEDState::WIFI_STA_CONNECTING:
+            set_led_pattern(LED_PATTERN_WIFI_CONNECTING, LED_PATTERN_WIFI_CONNECTING_LEN);
+            break;
+        case LEDState::CYCLE:
+            set_led_breath();
+            break;
+        case LEDState::IDLE:
+            set_led_brightness(LED_PER_ON);
+            break;
+    }
+}
+
+// 风扇自动控制逻辑
 void update_fan_auto_control() {
     if (!fan_output) {
         return;
@@ -745,104 +901,14 @@ void update_fan_auto_control() {
     set_fan_speed(should_fan_on ? FAN_PER_ON : FAN_PER_OFF);
 }
 
-// LED 状态判断（基于 sys.state 优先级）
-LEDState determine_led_state() {
-    switch (sys.state) {
-        case State::Alarm:
-            return LEDState::ALARM;
-
-        case State::SafetyDoor:
-            return LEDState::SAFETY_DOOR;
-
-        case State::Cycle:
-            return LEDState::CYCLE;
-
-        case State::Idle:
-        case State::Hold:
-        case State::Homing:
-        case State::Jog:
-        case State::CheckMode:
-        case State::Sleep:
-            break;
-    }
-
-    return LEDState::IDLE;
-}
-
-// 三角波呼吸灯（Gamma 校正，符合人眼感知）
-void set_led_breath() {
-    if (!led_output) {
-        return;
-    }
-
-    uint32_t cycle_time = 2000;
-    uint32_t phase = millis() % cycle_time;
-
-    // 计算线性亮度值 (0.0 - 1.0)
-    float linear_brightness;
-    if (phase < cycle_time / 2) {
-        linear_brightness = (float)phase / (cycle_time / 2);
-    } else {
-        linear_brightness = 1.0f - (float)(phase - cycle_time / 2) / (cycle_time / 2);
-    }
-
-    // Gamma 校正 (Gamma = 2.5，适合 LED 呼吸灯)
-    // 公式: perceived_brightness = linear_brightness ^ gamma
-    float gamma_corrected = pow(linear_brightness, 2.5f);
-    uint8_t brightness_percent = (uint8_t)(gamma_corrected * 100.0f);
-
-    set_led_brightness(brightness_percent);
-}
-
-// 简单闪烁
-void set_led_blink(uint32_t on_time, uint32_t off_time) {
-    if (!led_output) {
-        return;
-    }
-
-    uint32_t cycle_time = on_time + off_time;
-    uint32_t phase = millis() % cycle_time;
-
-    if (phase < on_time) {
-        set_led_brightness(LED_PER_ON);
-    } else {
-        set_led_brightness(LED_PER_OFF);
-    }
-}
-
-// LED 自动控制逻辑
-void update_led_auto_control() {
-    static LEDState current_led_state = LEDState::IDLE;
-    LEDState new_state = determine_led_state();
-
-    if (new_state != current_led_state) {
-        const char* state_names[] = {"ALARM", "SAFETY_DOOR", "CYCLE", "IDLE"};
-        LOG_INFO(TAG_LED, "State: %s -> %s", state_names[(int)current_led_state], state_names[(int)new_state]);
-        current_led_state = new_state;
-    }
-
-    switch (current_led_state) {
-        case LEDState::ALARM:
-            set_led_blink(500, 200);
-            break;
-        case LEDState::SAFETY_DOOR:
-            set_led_blink(500, 500);
-            break;
-        case LEDState::CYCLE:
-            set_led_breath();
-            break;
-        case LEDState::IDLE:
-            set_led_brightness(LED_PER_ON);
-            break;
-    }
-}
-
 // LED 和风扇控制任务
 void led_fan_control_task(void* parameter) {
     while (true) {
         update_led_auto_control();
+
         update_fan_auto_control();
-        vTaskDelay(pdMS_TO_TICKS(20));
+
+        vTaskDelay(pdMS_TO_TICKS(LOOP_TASK_PERIOD_MS));
     }
 }
 
@@ -887,14 +953,7 @@ void safety_monitor_task(void* parameter) {
                 case State::Cycle:
                 case State::Hold:
                 case State::Jog:
-                    LOG_INFO(TAG_SAFE, "Safety door opened (was in %s state)",
-                        sys.state == State::Idle ? "Idle" :
-                        sys.state == State::CheckMode ? "CheckMode" :
-                        sys.state == State::Homing ? "Homing" :
-                        sys.state == State::Cycle ? "Cycle" :
-                        sys.state == State::Hold ? "Hold" :
-                        sys.state == State::Jog ? "Jog" : "Unknown");
-
+                    LOG_INFO(TAG_SAFE, "Safety door opened (was in %s state)", sys_state_names[(int)sys.state]);
                     state_before_safety_door = sys.state;
                     sys_rt_exec_state.bit.safetyDoor = true;
                     break;
@@ -908,14 +967,7 @@ void safety_monitor_task(void* parameter) {
             switch (sys.state) {
                 case State::SafetyDoor:
                     if (!sys.suspend.bit.safetyDoorAjar) {
-                        LOG_INFO(TAG_SAFE, "Safety door closed (was in %s before)",
-                            state_before_safety_door == State::Idle ? "Idle" :
-                            state_before_safety_door == State::CheckMode ? "CheckMode" :
-                            state_before_safety_door == State::Homing ? "Homing" :
-                            state_before_safety_door == State::Cycle ? "Cycle" :
-                            state_before_safety_door == State::Hold ? "Hold" :
-                            state_before_safety_door == State::Jog ? "Jog" : "Unknown");
-
+                        LOG_INFO(TAG_SAFE, "Safety door closed (was in %s before)", sys_state_names[(int)state_before_safety_door]);
                         sys.suspend.bit.safetyDoorAjar = false;
 
                         if (state_before_safety_door == State::Hold) {
@@ -931,10 +983,7 @@ void safety_monitor_task(void* parameter) {
                         } else {
                             sys.suspend.value = 0;
                             sys.state = state_before_safety_door;
-                            LOG_INFO(TAG_SAFE, "Returned to %s state",
-                                state_before_safety_door == State::Idle ? "Idle" :
-                                state_before_safety_door == State::CheckMode ? "CheckMode" :
-                                state_before_safety_door == State::Homing ? "Homing" : "Unknown");
+                            LOG_INFO(TAG_SAFE, "Returned to %s state", sys_state_names[(int)state_before_safety_door]);
                         }
                         state_before_safety_door = State::Idle;
                     }
@@ -952,7 +1001,7 @@ void safety_monitor_task(void* parameter) {
             }
         }
 
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(LOOP_TASK_PERIOD_MS));
     }
 }
 
@@ -962,6 +1011,8 @@ void safety_monitor_task(void* parameter) {
 
 void machine_init() {
     LOG_INFO(TAG_INIT, "Wainlux K11 HIM Custom Init (Full Rewrite)");
+    LOG_INFO(TAG_INIT, "Compiled: %s at %s", __DATE__, __TIME__);
+    LOG_INFO(TAG_INIT, "ESP32 SDK: %s", ESP.getSdkVersion());
 
     // 初始化 GPIO
     pinMode(USER_BUTTON_PIN, INPUT_PULLUP);
