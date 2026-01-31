@@ -9,6 +9,53 @@
 
 ---
 
+## 2026-01-31
+
+### 新功能 (Features)
+- feat(webui): 实现 Web 文件管理 TCP Socket 传输功能
+  - 新增 FileTransferServer 模块，支持文件上传/下载/删除/列表
+  - 实现基于 TCP Socket 的二进制传输协议
+  - 支持 CRC32 校验和断点续传
+  - 添加完整的错误处理和超时机制
+- feat(skills): 新增 pio-runner 和 python-runner 技能
+  - pio-runner: 在 Git Bash 环境运行 PlatformIO 命令
+  - python-runner: 在 Git Bash 环境运行 Python 脚本
+  - 自动处理环境配置和路径问题
+
+### 优化改进 (Optimizations)
+- opt(wifi): 优化 WiFi 配置和 WebSettings 模块
+  - 改进 WiFi 连接状态管理
+  - 优化 Web 设置界面响应速度
+
+### 重构 (Refactoring)
+- refactor(skills): 移除 verify-esp32 技能
+  - 用 pio-runner 替代原有的 ESP-IDF 构建验证功能
+  - 简化技能系统架构
+
+### 文档更新 (Documentation)
+- docs: 新增 TCP Socket 文件传输协议文档
+  - 协议设计说明和参考代码
+  - Python/Dart 客户端实现示例
+  - 自动化测试脚本和配置文件
+- docs: 新增 Web 文件管理 API 详解文档
+  - FileTransferServer 架构设计
+  - TCP Socket 协议规范
+  - 安全性和性能优化建议
+- docs: 新增 ESP32 崩溃分析案例文档
+  - ArduinoOTA 内存不足问题分析
+  - 堆栈回溯和根因定位
+  - 解决方案和预防措施
+- docs: 新增 C++ 静态常量成员详解文档
+  - 声明与定义规则
+  - 内联初始化和 constexpr 用法
+- docs: 更新 Settings 配置系统设计详解
+
+### 其他变更 (Others)
+- chore: 更新 .gitignore 忽略规则
+- chore: 添加 Claude Code Git Bash 环境配置脚本
+
+---
+
 ## 2026-01-28
 
 ### 新功能 (Features)

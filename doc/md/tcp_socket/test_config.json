@@ -1,0 +1,15 @@
+{
+  "device": {
+    "serial_port": "COM3",
+    "baudrate": 115200
+  },
+  "server": {
+    "ip": "192.168.8.177",
+    "port": 8081,
+    "timeout": 20
+  },
+  "test": {
+    "upload_firmware": false,
+    "stop_on_failure": false
+  }
+}

@@ -44,6 +44,7 @@ namespace WebUI {
     IPaddrSetting* wifi_sta_netmask;
     IntSetting*    wifi_sta_retry_count;
     IntSetting*    wifi_sta_connect_timeout;
+    EnumSetting*   wifi_sta_random_mac;
 
     StringSetting* wifi_ap_ssid;
     StringSetting* wifi_ap_password;
@@ -57,6 +58,7 @@ namespace WebUI {
     IntSetting*    http_port;
     EnumSetting*   telnet_enable;
     IntSetting*    telnet_port;
+    IntSetting*    file_transfer_port;
 
     typedef std::map<const char*, int8_t, cmp_str> enum_opt_t;
 
@@ -1162,6 +1164,8 @@ namespace WebUI {
 #endif
 
 #ifdef ENABLE_WIFI
+        file_transfer_port = new IntSetting(
+            "File Transfer Port", WEBSET, WA, NULL, "FileTransfer/Port", DEFAULT_FILE_TRANSFER_PORT, MIN_FILE_TRANSFER_PORT, MAX_FILE_TRANSFER_PORT, NULL);
         telnet_port = new IntSetting(
             "Telnet Port", WEBSET, WA, "ESP131", "Telnet/Port", DEFAULT_TELNETSERVER_PORT, MIN_TELNET_PORT, MAX_TELNET_PORT, NULL);
         telnet_enable = new EnumSetting("Telnet Enable", WEBSET, WA, "ESP130", "Telnet/Enable", DEFAULT_TELNET_STATE, &onoffOptions, NULL);
@@ -1233,6 +1237,14 @@ namespace WebUI {
                                                   MIN_STA_CONNECT_TIMEOUT_MS,
                                                   MAX_STA_CONNECT_TIMEOUT_MS,
                                                   NULL);
+        wifi_sta_random_mac = new EnumSetting("Station Random MAC",
+                                              WEBSET,
+                                              WA,
+                                              NULL,
+                                              "Sta/RandomMAC",
+                                              DEFAULT_STA_RANDOM_MAC,
+                                              &onoffOptions,
+                                              NULL);
 #endif
     }
 }

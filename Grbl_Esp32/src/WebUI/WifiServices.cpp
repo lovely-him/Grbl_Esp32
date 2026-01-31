@@ -41,6 +41,9 @@
 #    ifdef ENABLE_NOTIFICATIONS
 #        include "NotificationsService.h"
 #    endif
+#    ifdef ENABLE_FILE_TRANSFER
+#        include "FileTransferServer.h"
+#    endif
 #    include "Commands.h"
 
 namespace WebUI {
@@ -119,6 +122,9 @@ namespace WebUI {
 #    ifdef ENABLE_NOTIFICATIONS
         notificationsservice.begin();
 #    endif
+#    ifdef ENABLE_FILE_TRANSFER
+        file_transfer_server.begin();
+#    endif
         //be sure we are not is mixed mode in setup
         WiFi.scanNetworks(true);
         return no_error;
@@ -126,6 +132,9 @@ namespace WebUI {
     void WiFiServices::end() {
 #    ifdef ENABLE_NOTIFICATIONS
         notificationsservice.end();
+#    endif
+#    ifdef ENABLE_FILE_TRANSFER
+        file_transfer_server.end();
 #    endif
 #    ifdef ENABLE_TELNET
         telnet_server.end();
@@ -164,6 +173,9 @@ namespace WebUI {
 #    endif
 #    ifdef ENABLE_TELNET
         telnet_server.handle();
+#    endif
+#    ifdef ENABLE_FILE_TRANSFER
+        file_transfer_server.handle();
 #    endif
     }
 }

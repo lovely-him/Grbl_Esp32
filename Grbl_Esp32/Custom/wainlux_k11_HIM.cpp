@@ -1,6 +1,6 @@
 /*
     wainlux_k11_HIM.cpp
-    Wainlux K11 HIM 自定义功能实现（完全重构版）
+    Wainlux K11 HIM 自定义功能实现 (完全重构版)
 
     功能:
     1. 按钮多功能控制:
@@ -21,14 +21,14 @@
 
     4. 风扇自动控制:
         - 开机前 5 分钟: 50% 占空比
-        - 5 分钟后: 激光开启时 50%，关闭时 0%
+        - 5 分钟后: 激光开启时 50%, 关闭时 0%
 
     5. 离线雕刻:
         - 从 SD 卡执行 /001.nc 文件
-        - 预览边界（移动到四个角点）
+        - 预览边界 (移动到四个角点)
 
     注意:
-    - 完全使用自定义代码，不依赖 Grbl 预定义接口
+    - 完全使用自定义代码, 不依赖 Grbl 预定义接口
     - 所有 RTOS 任务固定到核心 1
 */
 
@@ -38,10 +38,10 @@
 #include <Wire.h>
 
 // ============================================================================
-// 日志宏定义（编译时优化）
+// 日志宏定义 (编译时优化)
 // ============================================================================
 
-// 日志等级控制（0=关闭, 1=Error, 2=Warning, 3=Info, 4=Debug）
+// 日志等级控制 (0=关闭, 1=Error, 2=Warning, 3=Info, 4=Debug)
 #define LOG_LEVEL 4
 
 // ANSI 颜色代码
@@ -59,7 +59,7 @@
 #define COLOR_RESET   ""
 #endif
 
-// 日志标签定义（4字符对齐）
+// 日志标签定义 (4字符对齐)
 #define TAG_NONE    ""
 #define TAG_INIT    "[INIT]"
 #define TAG_LED     "[LED ]"
@@ -76,10 +76,10 @@
 // 回车换行
 #define CR_LF      "\r\n"
 
-// 获取毫秒时间戳（从启动开始）
+// 获取毫秒时间戳 (从启动开始)
 #define LOG_TIMESTAMP() (millis())
 
-// 日志宏定义（带颜色、时间戳、标签）
+// 日志宏定义 (带颜色, 时间戳, 标签)
 #if LOG_LEVEL >= 1
 #define LOG_ERROR(tag, fmt, ...) grbl_sendf(CLIENT_SERIAL, COLOR_RED "[E][%6lu]%s " fmt COLOR_RESET CR_LF, LOG_TIMESTAMP() , tag, ##__VA_ARGS__)
 #else
@@ -111,7 +111,7 @@
 // 按钮状态机
 enum class ButtonState {
     IDLE,                    // 未按下
-    PRESSED,                 // 已按下，等待判断
+    PRESSED,                 // 已按下, 等待判断
     SHORT_PRESS_DETECTED,    // 检测到短按 (< 0.5s)
     LONG_PRESS_3S_DETECTED,  // 检测到 3 秒长按
     LONG_PRESS_10S_DETECTED  // 检测到 10 秒超长按
@@ -119,11 +119,11 @@ enum class ButtonState {
 
 // LED 状态
 enum class LEDState {
-    ALARM,              // 警告状态（Alarm）
+    ALARM,              // 警告状态 (Alarm)
     SAFETY_DOOR,        // 安全门/倾斜保护
-    CYCLE,              // 雕刻状态（呼吸灯）
+    CYCLE,              // 雕刻状态 (呼吸灯)
     WIFI_STA_CONNECTING,// WiFi 连接中
-    IDLE,               // 待机模式（常亮）
+    IDLE,               // 待机模式 (常亮)
 };
 
 // ============================================================================
@@ -154,7 +154,7 @@ static QMI8658 imu;
 #define LOOP_TASK_PERIOD_MS (20)
 
 // PWM 配置
-#define PWM_FREQ_SHARED     (25000)     // 25kHz 共享频率（超声波范围，完全静音）
+#define PWM_FREQ_SHARED     (25000)     // 25kHz 共享频率 (超声波范围, 完全静音)
 #define LED_ACTIVE_HIGH     (1)         // LED 极性配置 0=共阳极(低电平点亮), 1=共阴极(高电平点亮)
 #define LED_PER_ON          (50)
 #define LED_PER_OFF         (0)
@@ -165,12 +165,12 @@ static QMI8658 imu;
 // QMI8658A 倾斜传感器初始化和读取
 // ============================================================================
 
-// 配置开关：0 = 使用库实现，1 = 使用直接寄存器操作
+// 配置开关: 0 = 使用库实现, 1 = 使用直接寄存器操作
 #define USE_QMI8658_REGISTER_DIRECT 0
 
 #if USE_QMI8658_REGISTER_DIRECT
 // ============================================================================
-// 方案 A: 直接寄存器操作（验证修复后的实现）
+// 方案 A: 直接寄存器操作 (验证修复后的实现)
 // ============================================================================
 
 // QMI8658A I2C 地址
@@ -212,7 +212,7 @@ bool readRegister_u8(uint8_t reg, uint8_t &value) {
     return true;
 }
 
-// 读取 16 位寄存器（小端序：先读 LSB，再读 MSB）
+// 读取 16 位寄存器 (小端序: 先读 LSB, 再读 MSB)
 bool readRegister_i16(uint8_t reg_lsb, int16_t &value) {
     Wire.beginTransmission(QMI8658A_ADDR);
     Wire.write(reg_lsb);
@@ -228,7 +228,7 @@ bool readRegister_i16(uint8_t reg_lsb, int16_t &value) {
     return true;
 }
 
-// 初始化传感器（修复后的正确实现）
+// 初始化传感器 (修复后的正确实现)
 bool init_tilt_sensor() {
     // 确保 Wire.begin() 只调用一次
     static bool wire_initialized = false;
@@ -252,21 +252,21 @@ bool init_tilt_sensor() {
 
     LOG_INFO(TAG_TILT, "WHO_AM_I = 0x%02X ✓", whoami);
 
-    // 2. 初始化 CTRL1（不是复位！）
+    // 2. 初始化 CTRL1 (不是复位! )
     if (!writeRegister(QMI8658_CTRL1, 0x60)) {
         LOG_ERROR(TAG_TILT, "Failed to write CTRL1");
         return false;
     }
     vTaskDelay(pdMS_TO_TICKS(10));
 
-    // 3. 配置加速度计：±8g (0x02), 1000Hz (0x03)
+    // 3. 配置加速度计: ±8g (0x02), 1000Hz (0x03)
     // CTRL2 = (Range << 4) | ODR = (0x02 << 4) | 0x03 = 0x23
     if (!writeRegister(QMI8658_CTRL2, 0x23)) {
         LOG_ERROR(TAG_TILT, "Failed to write CTRL2");
         return false;
     }
 
-    // 4. 关键修复：启用加速度计（写 CTRL7，不是 CTRL1！）
+    // 4. 关键修复: 启用加速度计 (写 CTRL7, 不是 CTRL1! )
     if (!writeRegister(QMI8658_CTRL7, 0x01)) {  // 0x01 = 启用加速度计
         LOG_ERROR(TAG_TILT, "Failed to enable accelerometer (CTRL7)");
         return false;
@@ -304,7 +304,7 @@ bool check_tilt_sensor(uint8_t debug_log) {
         return false;
     }
 
-    // 转换为 mg（±8g 范围，LSB/g = 4096）
+    // 转换为 mg (±8g 范围, LSB/g = 4096)
     float accelX = (raw_ax * 1000.0f) / 4096.0f;  // mg
     float accelY = (raw_ay * 1000.0f) / 4096.0f;
     float accelZ = (raw_az * 1000.0f) / 4096.0f;
@@ -325,7 +325,7 @@ bool check_tilt_sensor(uint8_t debug_log) {
 
 #else
 // ============================================================================
-// 方案 B: 使用库实现（当前稳定版本）
+// 方案 B: 使用库实现 (当前稳定版本)
 // ============================================================================
 
 // 初始化传感器
@@ -473,7 +473,7 @@ void preview_boundary() {
 
     WebUI::inputBuffer.push("$H\r");
     WebUI::inputBuffer.push("G90G0X0Y0\r");
-    WebUI::inputBuffer.push("M4S1\r");  // 打开激光，最小功率 (S1 = 0.1%)
+    WebUI::inputBuffer.push("M4S1\r");  // 打开激光, 最小功率 (S1 = 0.1%)
 
     sprintf(gcode, "G1X%.1fY0F3000\r", x_max);
     WebUI::inputBuffer.push(gcode);
@@ -686,7 +686,7 @@ void button_monitor_task(void* parameter) {
 // LED 和风扇 PWM 辅助函数
 // ============================================================================
 
-// LED 亮度设置（0-100%，自动处理极性反转）
+// LED 亮度设置 (0-100%, 自动处理极性反转)
 void set_led_brightness(uint8_t percent) {
     if (!led_output) return;
 
@@ -702,7 +702,7 @@ void set_led_brightness(uint8_t percent) {
     led_output->set_level(duty);
 }
 
-// 风扇速度设置（0-100%）
+// 风扇速度设置 (0-100%)
 void set_fan_speed(uint8_t percent) {
     if (!fan_output) return;
 
@@ -718,7 +718,7 @@ void set_fan_speed(uint8_t percent) {
 // LED 和风扇控制模块
 // ============================================================================
 
-// 三角波呼吸灯（Gamma 校正，符合人眼感知）
+// 三角波呼吸灯 (Gamma 校正, 符合人眼感知)
 void set_led_breath() {
     if (!led_output) {
         return;
@@ -735,7 +735,7 @@ void set_led_breath() {
         linear_brightness = 1.0f - (float)(phase - cycle_time / 2) / (cycle_time / 2);
     }
 
-    // Gamma 校正 (Gamma = 2.5，适合 LED 呼吸灯)
+    // Gamma 校正 (Gamma = 2.5, 适合 LED 呼吸灯)
     // 公式: perceived_brightness = linear_brightness ^ gamma
     float gamma_corrected = pow(linear_brightness, 2.5f);
     uint8_t brightness_percent = (uint8_t)(gamma_corrected * 100.0f);
@@ -743,7 +743,7 @@ void set_led_breath() {
     set_led_brightness(brightness_percent);
 }
 
-// 多段式闪烁模式（状态机实现，确保每个时间段都被完整执行）
+// 多段式闪烁模式 (状态机实现, 确保每个时间段都被完整执行)
 // pattern 格式: {时长1, 亮度1, 时长2, 亮度2, ...}
 // 例如: {50, 0, 1950, 50} 表示灭50ms, 亮1950ms
 void set_led_pattern(const uint32_t* pattern, uint8_t pattern_length) {
@@ -785,7 +785,7 @@ void set_led_pattern(const uint32_t* pattern, uint8_t pattern_length) {
 
 // LED 自动控制逻辑
 void update_led_auto_control() {
-    // LED 闪烁模式定义（函数内部 static const，遵循最小作用域）
+    // LED 闪烁模式定义 (函数内部 static const, 遵循最小作用域)
     // ALARM: 闪烁1次 (灭50ms, 亮1950ms, 总周期2000ms)
     static const uint32_t LED_PATTERN_ALARM[] = {100, LED_PER_OFF, 1900, LED_PER_ON};
     static const uint8_t LED_PATTERN_ALARM_LEN = sizeof(LED_PATTERN_ALARM) / sizeof(uint32_t);
@@ -824,7 +824,7 @@ void update_led_auto_control() {
             break;
     }
 
-    // 后置判断：WiFi 连接状态优先级最高（覆盖所有状态）
+    // 后置判断: WiFi 连接状态优先级最高 (覆盖所有状态)
     wifi_mode_t wifi_mode = WiFi.getMode();
     if (wifi_mode == WIFI_STA || wifi_mode == WIFI_AP_STA) {
         if (WiFi.status() != WL_CONNECTED) {
@@ -901,12 +901,29 @@ void update_fan_auto_control() {
     set_fan_speed(should_fan_on ? FAN_PER_ON : FAN_PER_OFF);
 }
 
-// LED 和风扇控制任务
+// LED 和风扇控制任务 (包含内存监控)
 void led_fan_control_task(void* parameter) {
+    // 内存监控配置
+    static uint32_t last_mem_log_time = 0;
+    const uint32_t MEM_LOG_INTERVAL_MS = 10000;  // 每 10 秒打印一次
+
     while (true) {
         update_led_auto_control();
 
         update_fan_auto_control();
+
+        // 内存监控 (定期打印)
+        uint32_t now = millis();
+        if (now - last_mem_log_time >= MEM_LOG_INTERVAL_MS) {
+            uint32_t free_heap = ESP.getFreeHeap();
+            uint32_t min_free_heap = ESP.getMinFreeHeap();
+            uint32_t max_alloc_heap = ESP.getMaxAllocHeap();
+
+            LOG_DEBUG(TAG_STAT, "Memory: Free=%u, Min=%u, MaxAlloc=%u bytes",
+                free_heap, min_free_heap, max_alloc_heap);
+
+            last_mem_log_time = now;
+        }
 
         vTaskDelay(pdMS_TO_TICKS(LOOP_TASK_PERIOD_MS));
     }
@@ -1019,7 +1036,7 @@ void machine_init() {
     pinMode(SAFETY_DOOR_PIN, INPUT_PULLUP);
     LOG_INFO(TAG_INIT, "%s(%d) | %s(%d)", TAG_BTN, USER_BUTTON_PIN, TAG_DOOR, SAFETY_DOOR_PIN);
 
-    // 初始化 PWM（使用 UserOutput::AnalogOutput）
+    // 初始化 PWM (使用 UserOutput::AnalogOutput)
     led_output = new UserOutput::AnalogOutput(0, STATUS_LED_PIN, PWM_FREQ_SHARED);
     set_led_brightness(LED_PER_ON);
     fan_output = new UserOutput::AnalogOutput(1, COOLING_FAN_PIN, PWM_FREQ_SHARED);
@@ -1029,7 +1046,7 @@ void machine_init() {
     (void)init_tilt_sensor();
     (void)check_tilt_sensor(true);
 
-    // 创建任务（固定到核心 1）
+    // 创建任务 (固定到核心 1)
     xTaskCreatePinnedToCore(button_monitor_task, "Button", 4096, NULL, 1, NULL, 1);
     xTaskCreatePinnedToCore(safety_monitor_task, "Safety", 4096, NULL, 1, NULL, 1);
     xTaskCreatePinnedToCore(led_fan_control_task, "LED+Fan", 4096, NULL, 1, NULL, 1);

@@ -235,9 +235,9 @@ Setting* find_setting(const char* name) {
 
 | grblName 值 | 访问方式 | 示例 | 说明 |
 |------------|---------|------|------|
-| `"$数字"` (如 `"0"`, `"100"`) | `$数字=值` | `$100=80` | GRBL 标准命令，兼容原始 Grbl |
+| `"数字"` (如 `"0"`, `"100"`) | `$数字=值` | `$100=80` | GRBL 标准命令，兼容原始 Grbl |
 | `"ESP数字"` (如 `"ESP100"`) | `[ESP数字]值` | `[ESP100]MySSID` | ESP3D WebUI 命令格式 |
-| `NULL` | `完整名称=值` | `Sta/RetryCount=5` | 仅通过完整名称访问 |
+| `NULL` | `$完整名称=值` | `$Sta/RetryCount=5` | 仅通过完整名称访问（使用 $ 前缀） |
 
 ### 实际示例解析
 
@@ -257,7 +257,8 @@ wifi_sta_ssid = new StringSetting(
 
 // 用户可以使用以下方式访问：
 // 方式 1: [ESP100]MyWiFi          （推荐，ESP3D 标准格式）
-// 方式 2: Sta/SSID=MyWiFi          （通过完整名称）
+// 方式 2: $Sta/SSID=MyWiFi         （通过完整名称，需要 $ 前缀）
+// 方式 3: [ESP401] P=Sta/SSID V=MyWiFi  （通用设置命令，注意空格）
 
 // 示例 2: 无 ESP 命令编号（只能通过完整名称访问）
 wifi_sta_retry_count = new IntSetting(
@@ -272,8 +273,9 @@ wifi_sta_retry_count = new IntSetting(
     NULL
 );
 
-// 用户只能使用以下方式访问：
-// 方式 1: Sta/RetryCount=5         （唯一方式）
+// 用户可以使用以下方式访问：
+// 方式 1: $Sta/RetryCount=5        （通过完整名称，需要 $ 前缀）
+// 方式 2: [ESP401] P=Sta/RetryCount V=5  （通用设置命令，注意空格）
 
 // 示例 3: GRBL 标准设置（可通过 $ 命令访问）
 FloatSetting* x_steps_per_mm = new FloatSetting(
@@ -285,7 +287,8 @@ FloatSetting* x_steps_per_mm = new FloatSetting(
 
 // 用户可以使用以下方式访问：
 // 方式 1: $100=80                  （推荐，GRBL 标准格式）
-// 方式 2: X/StepsPerMm=80          （通过完整名称）
+// 方式 2: $X/StepsPerMm=80         （通过完整名称，需要 $ 前缀）
+// 方式 3: [ESP401] P=X/StepsPerMm V=80  （通用设置命令，注意空格）
 ```
 
 ### 访问方式的选择规则
@@ -298,11 +301,11 @@ FloatSetting* x_steps_per_mm = new FloatSetting(
 #### WEBSET 类型设置 (type = WEBSET)
 - **可选**提供 `grblName`（如 `"ESP100"`）
 - 如果提供：用户使用 `[ESP数字]值` 格式
-- 如果不提供：用户只能使用完整名称
+- 如果不提供：用户使用 `$完整名称=值` 格式（需要 $ 前缀）
 
 #### EXTENDED 类型设置 (type = EXTENDED)
 - 通常 `grblName = NULL`
-- 用户使用完整名称访问
+- 用户使用 `$完整名称=值` 格式（需要 $ 前缀）
 
 ### ESP 命令格式详解
 
@@ -315,7 +318,7 @@ FloatSetting* x_steps_per_mm = new FloatSetting(
 [ESP101]MyPassword pwd=admin      // 设置 WiFi 密码
 [ESP121]8080 pwd=admin            // 设置 HTTP 端口
 [ESP400]                          // 列出所有 WEBSET 设置
-[ESP401]P=Sta/SSID V=NewSSID      // 通用设置命令
+[ESP401] P=Sta/SSID V=NewSSID     // 通用设置命令（注意 ] 后有空格）
 ```
 
 ### 通用设置命令 [ESP401]
@@ -323,14 +326,21 @@ FloatSetting* x_steps_per_mm = new FloatSetting(
 对于**所有**设置（包括没有 ESP 编号的），都可以使用 `[ESP401]` 通用命令：
 
 ```cpp
-// 格式
-[ESP401]P=完整名称 V=值 pwd=密码
+// 格式（注意 ] 后面必须有空格）
+[ESP401] P=完整名称 V=值 pwd=密码
 
 // 示例
-[ESP401]P=Sta/SSID V=MyWiFi pwd=admin
-[ESP401]P=Sta/RetryCount V=5 pwd=admin
-[ESP401]P=X/StepsPerMm V=80 pwd=admin
+[ESP401] P=Sta/SSID V=MyWiFi pwd=admin
+[ESP401] P=Sta/RetryCount V=5 pwd=admin
+[ESP401] P=X/StepsPerMm V=80 pwd=admin
 ```
+
+**重要说明：**
+1. `[ESP401]` 后面的 `]` 和 `P=` 之间**必须有空格**
+2. `[ESP401]` **只能用于设置值**，不能用于查看值
+3. 要查看参数值，请使用：
+   - `$参数名` - 查看单个参数（如 `$Sta/RetryCount`）
+   - `[ESP400]` - 查看所有 WEBSET 参数
 
 **实现原理：** 查看 [WebSettings.cpp:647-661](Grbl_Esp32/src/WebUI/WebSettings.cpp#L647-L661)
 
@@ -345,10 +355,16 @@ static Error setWebSetting(char* parameter, AuthenticationLevel auth_level) {  /
         webPrintln("Missing parameter");
         return Error::InvalidValue;
     }
+    // 注意：sval 如果没有 V= 参数，会返回空字符串 ""，而不是 NULL
+    // 这会导致 do_command_or_setting 尝试设置空值，从而报错 error:2
     Error ret = do_command_or_setting(spos, sval, auth_level, espresponse);
     return ret;
 }
 ```
+
+**为什么 [ESP401] 不能查看参数？**
+
+从代码可以看到，`get_param("V", true)` 在没有 `V=` 参数时返回空字符串 `""`，而不是 `NULL`。这导致 `do_command_or_setting` 会尝试设置空值，对于 `IntSetting` 会触发 `Error::BadNumberFormat` (error:2)。
 
 ## 设置类型详解
 
@@ -364,8 +380,8 @@ IntSetting* laser_full_power = new IntSetting(
 int32_t power = laser_full_power->get();
 
 // 用户访问（因为 grblName = NULL）
-// 方式 1: Laser/FullPower=5000
-// 方式 2: [ESP401]P=Laser/FullPower V=5000
+// 方式 1: $Laser/FullPower=5000         （需要 $ 前缀）
+// 方式 2: [ESP401] P=Laser/FullPower V=5000  （注意空格）
 ```
 
 ### FloatSetting - 浮点数设置
@@ -380,9 +396,9 @@ FloatSetting* steps_per_mm = new FloatSetting(
 float steps = steps_per_mm->get();
 
 // 用户访问（因为 grblName = "100"）
-// 方式 1: $100=80              （推荐，GRBL 标准）
-// 方式 2: X/StepsPerMm=80
-// 方式 3: [ESP401]P=X/StepsPerMm V=80
+// 方式 1: $100=80                       （推荐，GRBL 标准）
+// 方式 2: $X/StepsPerMm=80              （需要 $ 前缀）
+// 方式 3: [ESP401] P=X/StepsPerMm V=80  （注意空格）
 ```
 
 ### StringSetting - 字符串设置
@@ -397,9 +413,9 @@ StringSetting* wifi_ssid = new StringSetting(
 const char* ssid = wifi_ssid->get();
 
 // 用户访问（因为 grblName = "ESP100"）
-// 方式 1: [ESP100]MyWiFi pwd=admin    （推荐，ESP3D 标准）
-// 方式 2: WiFi/SSID=MyWiFi
-// 方式 3: [ESP401]P=WiFi/SSID V=MyWiFi pwd=admin
+// 方式 1: [ESP100]MyWiFi pwd=admin           （推荐，ESP3D 标准）
+// 方式 2: $WiFi/SSID=MyWiFi                  （需要 $ 前缀）
+// 方式 3: [ESP401] P=WiFi/SSID V=MyWiFi pwd=admin  （注意空格）
 ```
 
 ### EnumSetting - 枚举设置
@@ -686,7 +702,7 @@ FloatSetting* x_steps_per_mm = new FloatSetting(
     80.0, 0.0, 10000.0
 );
 
-// 用户可以使用 "$100=100" 或 "X/StepsPerMm=100"
+// 用户可以使用 "$100=100" 或 "$X/StepsPerMm=100"（都需要 $ 前缀）
 ```
 
 ### 模式 4：轴相关设置
@@ -729,6 +745,134 @@ for (int axis = 0; axis < N_AXIS; axis++) {
 - 安全相关设置使用 `WA`（仅管理员可写）
 - 常规设置使用 `WG`（访客可写）
 - 敏感信息使用 `WU` 或 `WA`
+
+## 常见问题 (FAQ)
+
+### Q1: 为什么 `[ESP401]P=Sta/RetryCount` 报错 `error:2`？
+
+**原因：**
+1. `]` 后面缺少空格
+2. 缺少 `V=` 参数
+
+**解决方案：**
+```bash
+# ❌ 错误：缺少空格
+[ESP401]P=Sta/RetryCount
+
+# ❌ 错误：缺少 V= 参数
+[ESP401] P=Sta/RetryCount
+
+# ✅ 正确：设置值
+[ESP401] P=Sta/RetryCount V=5
+
+# ✅ 正确：查看值（使用 $ 格式）
+$Sta/RetryCount
+```
+
+### Q2: `[ESP401]` 能用来查看参数吗？
+
+**不能。** `[ESP401]` 只能用于**设置**参数值，不能用于查看。
+
+要查看参数，请使用：
+- `$参数名` - 查看单个参数
+- `[ESP400]` - 查看所有 WEBSET 参数
+
+**原因：** `get_param("V", true)` 在没有 `V=` 参数时返回空字符串 `""`，而不是 `NULL`，导致系统尝试设置空值而报错。
+
+### Q3: 为什么有些参数需要 `$` 前缀，有些不需要？
+
+**规则：**
+- **有 grblName 的参数**：可以使用简短命令（如 `$100=80` 或 `[ESP100]MySSID`）
+- **没有 grblName 的参数**：必须使用 `$完整名称=值` 格式（如 `$Sta/RetryCount=5`）
+
+**示例：**
+```cpp
+// 有 grblName = "100"
+FloatSetting* x_steps = new FloatSetting(GRBL, WG, "100", "X/StepsPerMm", ...);
+// 可以使用：$100=80
+
+// 没有 grblName (NULL)
+IntSetting* retry_count = new IntSetting(WEBSET, WA, NULL, "Sta/RetryCount", ...);
+// 必须使用：$Sta/RetryCount=5
+```
+
+### Q4: `[ESP401]` 的正确格式是什么？
+
+**格式：** `[ESP401] P=参数名 V=值 pwd=密码`
+
+**关键点：**
+1. `]` 和 `P=` 之间**必须有空格**
+2. `P=` 和 `V=` 之间用空格分隔
+3. 必须同时提供 `P=` 和 `V=` 参数
+
+**示例：**
+```bash
+# ✅ 正确
+[ESP401] P=Sta/RetryCount V=5
+[ESP401] P=Sta/SSID V=MyWiFi pwd=admin
+
+# ❌ 错误：缺少空格
+[ESP401]P=Sta/RetryCount V=5
+
+# ❌ 错误：缺少 V= 参数
+[ESP401] P=Sta/RetryCount
+```
+
+### Q5: 如何查看所有可用的设置参数？
+
+**方法 1：** 使用 `[ESP400]` 查看所有 WEBSET 类型的参数
+```bash
+[ESP400]
+```
+
+**方法 2：** 使用 `$$` 查看所有 GRBL 类型的参数
+```bash
+$$
+```
+
+**方法 3：** 使用正则表达式查看匹配的参数
+```bash
+$Sta/.*    # 查看所有 Sta/ 开头的参数
+```
+
+### Q6: 为什么有些参数需要密码，有些不需要？
+
+**权限级别：**
+- `WG` (Guest)：访客可读写，不需要密码
+- `WU` (User)：用户和管理员可读写，需要用户密码
+- `WA` (Admin)：管理员可写，需要管理员密码
+
+**示例：**
+```cpp
+// WG 权限：不需要密码
+IntSetting* pulse = new IntSetting(GRBL, WG, "0", "Stepper/Pulse", ...);
+// 使用：$0=5
+
+// WA 权限：需要管理员密码
+StringSetting* wifi_ssid = new StringSetting(WEBSET, WA, "ESP100", "Sta/SSID", ...);
+// 使用：[ESP100]MyWiFi pwd=admin
+```
+
+### Q7: 如何禁用认证？
+
+在 [Config.h](Grbl_Esp32/src/Config.h) 中注释掉 `ENABLE_AUTHENTICATION`：
+
+```cpp
+// #define ENABLE_AUTHENTICATION
+```
+
+禁用后，所有命令都不需要密码。
+
+### Q8: 参数修改后需要重启吗？
+
+**大多数参数**：立即生效，不需要重启
+
+**需要重启的参数**：
+- WiFi 相关设置（SSID、密码、IP 等）
+- 蓝牙设置
+- HTTP/Telnet 端口
+
+**查看是否需要重启**：修改参数后，系统会提示是否需要重启。
 
 ## 相关文件
 

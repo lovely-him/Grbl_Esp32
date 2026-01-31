@@ -51,8 +51,13 @@ namespace WebUI {
     static const char* DEFAULT_STA_IP            = "0.0.0.0";
     static const char* DEFAULT_STA_GW            = "0.0.0.0";
     static const char* DEFAULT_STA_MK            = "0.0.0.0";
+#ifdef CONNECT_TO_AP_SSID
+    static const char* DEFAULT_AP_SSID           = CONNECT_TO_AP_SSID;
+    static const char* DEFAULT_AP_PWD            = AP_SSID_PASSWORD;
+#else   //!CONNECT_TO_AP_SSID
     static const char* DEFAULT_AP_SSID           = "GRBL_ESP";
     static const char* DEFAULT_AP_PWD            = "12345678";
+#endif //CONNECT_TO_AP_SSID
     static const char* DEFAULT_AP_IP             = "192.168.0.1";
     static const char* DEFAULT_AP_MK             = "255.255.255.0";
     static const int   DEFAULT_AP_CHANNEL        = 1;
@@ -60,9 +65,11 @@ namespace WebUI {
     static const int   DEFAULT_HTTP_STATE        = 1;
     static const int   DEFAULT_TELNETSERVER_PORT = 23;
     static const int   DEFAULT_TELNET_STATE      = 1;
+    static const int   DEFAULT_FILE_TRANSFER_PORT = 8081;
     static const int   DEFAULT_STA_IP_MODE       = DHCP_MODE;
-    static const int   DEFAULT_STA_RETRY_COUNT   = 6;
+    static const int   DEFAULT_STA_RETRY_COUNT   = 0;
     static const int   DEFAULT_STA_CONNECT_TIMEOUT_MS = 10000;
+    static const int   DEFAULT_STA_RANDOM_MAC    = 0;
     static const char* HIDDEN_PASSWORD           = "********";
     static const char* DEFAULT_TOKEN             = "";
     static const int   DEFAULT_NOTIFICATION_TYPE = 0;
@@ -80,10 +87,12 @@ namespace WebUI {
     static const int MIN_HTTP_PORT                   = 1;
     static const int MAX_TELNET_PORT                 = 65001;
     static const int MIN_TELNET_PORT                 = 1;
+    static const int MAX_FILE_TRANSFER_PORT          = 65001;
+    static const int MIN_FILE_TRANSFER_PORT          = 1;
     static const int MIN_CHANNEL                     = 1;
     static const int MAX_CHANNEL                     = 14;
-    static const int MIN_STA_RETRY_COUNT             = 1;
-    static const int MAX_STA_RETRY_COUNT             = 10;
+    static const int MIN_STA_RETRY_COUNT             = 0;
+    static const int MAX_STA_RETRY_COUNT             = 99;
     static const int MIN_STA_CONNECT_TIMEOUT_MS      = 10000;
     static const int MAX_STA_CONNECT_TIMEOUT_MS      = 300000;
     static const int MIN_NOTIFICATION_TOKEN_LENGTH   = 0;

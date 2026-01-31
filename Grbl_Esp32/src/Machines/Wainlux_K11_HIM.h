@@ -132,6 +132,12 @@
 #define MACHINE_NAME            "Genmitsu_Kiosk_V07_HIM"
 #define MACHINE_NAME_C          "Genmitsu_Kiosk_C_V07_HIM"
 
+#define CONNECT_TO_SSID         "MT3000"
+#define SSID_PASSWORD           "88888888"
+
+#define CONNECT_TO_AP_SSID      MACHINE_NAME
+#define AP_SSID_PASSWORD        "12345678"
+
 // ============================================================================
 // 自定义代码文件 (可选)
 // ============================================================================

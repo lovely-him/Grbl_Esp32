@@ -31,6 +31,7 @@ namespace WebUI {
     extern IPaddrSetting* wifi_sta_netmask;
     extern IntSetting*    wifi_sta_retry_count;
     extern IntSetting*    wifi_sta_connect_timeout;
+    extern EnumSetting*   wifi_sta_random_mac;
 
     extern StringSetting* wifi_ap_ssid;
     extern StringSetting* wifi_ap_password;
@@ -44,6 +45,7 @@ namespace WebUI {
     extern IntSetting*    http_port;
     extern EnumSetting*   telnet_enable;
     extern IntSetting*    telnet_port;
+    extern IntSetting*    file_transfer_port;
 #endif
 
 #ifdef WIFI_OR_BLUETOOTH

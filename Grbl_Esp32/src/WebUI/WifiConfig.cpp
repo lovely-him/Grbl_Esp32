@@ -214,13 +214,11 @@ namespace WebUI {
                 // 此时 LwIP 网络接口已初始化, 可以安全设置主机名
                 // https://cloud.tencent.com/developer/ask/sof/116024168
                 {
-                    // String h = wifi_hostname->get();
-                    // WiFi.setHostname(h.c_str());
-                    const char* c_str = MACHINE_NAME;
-                    if (WiFi.setHostname(c_str)) {
-                        grbl_sendf(CLIENT_ALL, "[MSG:Hostname set to: %s]\r\n", c_str);
+                    String h = wifi_hostname->get();
+                    if (WiFi.setHostname(h.c_str())) {
+                        grbl_sendf(CLIENT_ALL, "[MSG:Start DHCP with hostname: %s]\r\n", h.c_str());
                     } else {
-                        grbl_sendf(CLIENT_ALL, "[MSG:Failed to set hostname: %s]\r\n", c_str);
+                        grbl_sendf(CLIENT_ALL, "[MSG:Cannot start DHCP: %s]\r\n", h.c_str());
                     }
                 }
                 break;
@@ -299,11 +297,15 @@ namespace WebUI {
     /*
      * Start client mode (Station)
      * Implements retry logic with configurable retry count
+     * retry_count = 0 means infinite retry until success
      */
 
     bool WiFiConfig::StartSTA() {
         int32_t retry_count = wifi_sta_retry_count->get();
-        for (int32_t attempt = 1; attempt <= retry_count; attempt++) {
+        bool infinite_retry = (retry_count == 0);
+        int32_t attempt = 1;
+
+        while (infinite_retry || attempt <= retry_count) {
             //stop active service
             wifi_services.end();
             //Sanity check
@@ -316,12 +318,15 @@ namespace WebUI {
             WiFi.enableAP(false);
             WiFi.mode(WIFI_STA);
 
+            // 读取并显示当前 MAC 地址
+            uint8_t current_mac[6];
+            esp_read_mac(current_mac, ESP_MAC_WIFI_STA);
+            grbl_sendf(CLIENT_ALL, "[MSG:Fixed MAC: %s]\r\n", mac2str(current_mac));
+
             // 生成随机 MAC 地址
-            if (1) {
-                // 读取基础 MAC
+            if (wifi_sta_random_mac->get()) {
                 uint8_t random_mac[6];
-                esp_read_mac(random_mac, ESP_MAC_WIFI_STA);
-                grbl_sendf(CLIENT_ALL, "[MSG:Fixed MAC get: %s]\r\n", mac2str(random_mac));
+                memcpy(random_mac, current_mac, 6);
 
                 // 设置本地管理位（bit 1 of first byte = 1）
                 random_mac[0] |= 0x02;
@@ -358,7 +363,11 @@ namespace WebUI {
             //     "h=%s, SSID=%s, password=%s, IP_mode=0x%02X, IP=0x%08X, GW=0x%08X, MK=0x%08X, \r\n",
             //     h.c_str(), SSID.c_str(), password.c_str(), IP_mode, IP, GW, MK);
 
-            grbl_sendf(CLIENT_ALL, "[MSG:Connecting %s (attempt %d/%d)]\r\n", SSID.c_str(), attempt, retry_count);
+            if (infinite_retry) {
+                grbl_sendf(CLIENT_ALL, "[MSG:Connecting %s (attempt %d)]\r\n", SSID.c_str(), attempt);
+            } else {
+                grbl_sendf(CLIENT_ALL, "[MSG:Connecting %s (attempt %d/%d)]\r\n", SSID.c_str(), attempt, retry_count);
+            }
 
             //if not DHCP
             if (IP_mode != DHCP_MODE) {
@@ -378,10 +387,12 @@ namespace WebUI {
             WiFi.disconnect();
             COMMANDS::wait(200);
 
-            if (attempt < retry_count) {
+            if (infinite_retry || attempt < retry_count) {
                 grbl_send(CLIENT_ALL, "[MSG:Retrying in 3 second...]\r\n");
                 COMMANDS::wait(600+2000);  // 200 + 600 = 800ms total delay
             }
+
+            attempt++;
         }
 
         return false;
