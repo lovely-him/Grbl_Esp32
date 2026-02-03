@@ -1,7 +1,7 @@
 ---
-description: 创建符合 Conventional Commits 规范的 git 提交
+description: Create git commit following Conventional Commits specification
 allowed-tools: Bash(git add:*), Bash(git status:*), Bash(git commit:*)
-argument-hint: [提交消息]
+argument-hint: Commit message
 ---
 
 ## 上下文

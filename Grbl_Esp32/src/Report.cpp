@@ -72,12 +72,13 @@ void grbl_sendf(uint8_t client, const char* format, ...) {
     size_t len = vsnprintf(NULL, 0, format, arg);
     va_end(copy);
     if (len >= sizeof(loc_buf)) {
-        temp = new char[len + 1];
-        if (temp == NULL) {
-            return;
+        try {
+            temp = new char[len + 1];
+        } catch (std::bad_alloc& e) {
+            temp = loc_buf;
         }
     }
-    len = vsnprintf(temp, len + 1, format, arg);
+    vsnprintf(temp, (temp == loc_buf) ? sizeof(loc_buf) : (len + 1), format, arg);
     grbl_send(client, temp);
     va_end(arg);
     if (temp != loc_buf) {
@@ -105,12 +106,13 @@ void grbl_msg_sendf(uint8_t client, MsgLevel level, const char* format, ...) {
     size_t len = vsnprintf(NULL, 0, format, arg);
     va_end(copy);
     if (len >= sizeof(loc_buf)) {
-        temp = new char[len + 1];
-        if (temp == NULL) {
-            return;
+        try {
+            temp = new char[len + 1];
+        } catch (std::bad_alloc& e) {
+            temp = loc_buf;
         }
     }
-    len = vsnprintf(temp, len + 1, format, arg);
+    vsnprintf(temp, (temp == loc_buf) ? sizeof(loc_buf) : (len + 1), format, arg);
     grbl_sendf(client, "[MSG:%s]\r\n", temp);
     va_end(arg);
     if (temp != loc_buf) {
@@ -287,6 +289,7 @@ void report_feedback_message(Message message) {  // ok to send to all clients
 // Welcome message
 void report_init_message(uint8_t client) {
     grbl_sendf(client, "\r\nGrbl %s ['$' for help]\r\n", GRBL_VERSION);
+    machine_after_init_message();
 }
 
 // Grbl help message

@@ -69,6 +69,13 @@ namespace WebUI {
          */
         static uint16_t port() { return _port; }
 
+        /**
+         * @brief 检查是否正在传输文件
+         *
+         * @return true 正在传输文件, false 空闲状态
+         */
+        bool isTransferring() const { return _state != TransferState::Idle; }
+
     private:
         // 服务器管理
         static bool        _setupdone;          /**< 服务器是否已启动 */
@@ -85,8 +92,8 @@ namespace WebUI {
         static constexpr uint16_t TRANSFER_TIMEOUT_MS   = 10000;   /**< 超时时间 (毫秒) */
         static constexpr uint32_t RXBUFFERSIZE          = 34816;   /**< 接收缓冲区大小 (33KB, 支持 32KB 数据包 + 头部) */
 
-        // 接收缓冲区 (堆分配, 避免 BSS 段溢出)
-        uint8_t* _rxBuffer;  /**< 接收缓冲区 (堆分配, 构造时创建) */
+        // 接收缓冲区 (静态分配, 编译时定义)
+        static uint8_t _rxBuffer[RXBUFFERSIZE];  /**< 接收缓冲区 (静态分配) */
 
         /**
          * @brief 数据包类型枚举
@@ -125,6 +132,7 @@ namespace WebUI {
         uint16_t _expectedPacketIndex;  /**< 期望的下一个数据包序号 */
         uint32_t _lastActivityTime;     /**< 最后一次活动时间 (毫秒) */
         bool     _skipSDWrite;          /**< 跳过 SD 卡写入 (SD 卡不可用时) */
+        size_t   _totalBytesWritten;    /**< 累计理论写入字节数 (接收到的数据量) */
 
         // 协议处理方法
 
@@ -198,9 +206,10 @@ namespace WebUI {
          * 统一的清理函数, 自动处理所有资源释放:
          * - 关闭文件 (如果已打开)
          * - 恢复 SD 卡状态 (如果需要)
-         * - 断开客户端连接 (如果已连接)
          * - 重置接收缓冲区长度
          * - 重置所有状态变量
+         *
+         * @note 不会主动断开客户端连接, 只清理内部状态
          */
         void cleanup();
     };

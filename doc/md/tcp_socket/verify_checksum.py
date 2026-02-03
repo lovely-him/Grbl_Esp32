@@ -8,10 +8,10 @@ def calculate_checksum(data_hex):
     """计算校验和
 
     Args:
-        data_hex: 十六进制字符串，例如 "AB 01 00 11 00 00 74 65 73 74 2E 74 78 74"
+        data_hex: 十六进制字符串, 例如 "AB 01 00 11 00 00 74 65 73 74 2E 74 78 74"
 
     Returns:
-        校验和的十六进制字符串，例如 "02 2D"
+        校验和的十六进制字符串, 例如 "02 2D"
     """
     bytes_list = [int(b, 16) for b in data_hex.split()]
     checksum = sum(bytes_list) & 0xFFFF
@@ -21,14 +21,14 @@ def verify_packet(packet_hex):
     """验证数据包的校验和
 
     Args:
-        packet_hex: 完整数据包的十六进制字符串（包含校验和）
+        packet_hex: 完整数据包的十六进制字符串 (包含校验和) 
 
     Returns:
         (is_valid, calculated_checksum, received_checksum)
     """
     bytes_list = [int(b, 16) for b in packet_hex.split()]
 
-    # 提取数据部分（除了最后2字节）
+    # 提取数据部分 (除了最后2字节) 
     data_bytes = bytes_list[:-2]
 
     # 计算校验和
@@ -48,7 +48,7 @@ def main():
     print()
 
     # 测试 1: 文件信息包 (test.txt)
-    print("【测试 1】文件信息包 - 文件名: test.txt")
+    print(" [测试 1] 文件信息包 - 文件名: test.txt")
     print("-" * 70)
 
     # 文件名 "test.txt" 的 ASCII 编码
@@ -58,7 +58,7 @@ def main():
     print(f"文件名编码: {filename_hex}")
     print()
 
-    # 构建数据包（不含校验和）
+    # 构建数据包 (不含校验和) 
     data = f"AB 01 00 11 00 00 {filename_hex}"
     print(f"数据部分: {data}")
 
@@ -77,7 +77,7 @@ def main():
     print()
 
     # 测试 2: 数据包 1 (Hello)
-    print("【测试 2】数据包 1 - 内容: Hello")
+    print(" [测试 2] 数据包 1 - 内容: Hello")
     print("-" * 70)
 
     content = "Hello"
@@ -101,7 +101,7 @@ def main():
     print()
 
     # 测试 3: 数据包 2 ( World)
-    print("【测试 3】数据包 2 - 内容:  World")
+    print(" [测试 3] 数据包 2 - 内容:  World")
     print("-" * 70)
 
     content3 = " World"
@@ -125,7 +125,7 @@ def main():
     print()
 
     # 测试 4: 取消包
-    print("【测试 4】取消包")
+    print(" [测试 4] 取消包")
     print("-" * 70)
 
     data4 = "AB 03 00 06"
@@ -143,7 +143,7 @@ def main():
     print()
 
     # 测试用户发送的数据包
-    print("【测试 5】验证用户发送的数据包")
+    print(" [测试 5] 验证用户发送的数据包")
     print("-" * 70)
 
     user_packet = "AB 01 00 11 00 00 74 65 73 74 2E 74 78 74 02 2D"
@@ -156,7 +156,7 @@ def main():
 
     if not is_valid5:
         print()
-        print("WARNING: 校验和不匹配！")
+        print("WARNING: 校验和不匹配! ")
         print(f"   应该使用: {calc5}")
         print(f"   实际使用: {recv5}")
         print()

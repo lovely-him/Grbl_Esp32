@@ -38,70 +38,36 @@
 #include <Wire.h>
 
 // ============================================================================
-// 日志宏定义 (编译时优化)
+// 日志宏定义
 // ============================================================================
 
 // 日志等级控制 (0=关闭, 1=Error, 2=Warning, 3=Info, 4=Debug)
-#define LOG_LEVEL 4
+#define HIM_LOG_LEVEL 3
+#define HIM_LOG_FORMAT(letter, format)  "[" #letter "][%s:%u] " format "\r\n", __FUNCTION__, __LINE__
 
-// ANSI 颜色代码
-#if 0
-#define COLOR_RED     "\033[0;31m"
-#define COLOR_YELLOW  "\033[0;33m"
-#define COLOR_GREEN   "\033[0;32m"
-#define COLOR_CYAN    "\033[0;36m"
-#define COLOR_RESET   "\033[0m"
+// 日志宏定义 (使用 ESP32 标准日志系统)
+#if HIM_LOG_LEVEL >= 1
+#define HIM_LOG_ERROR(fmt, ...) grbl_sendf(CLIENT_SERIAL, HIM_LOG_FORMAT(E, fmt), ##__VA_ARGS__)
 #else
-#define COLOR_RED     ""
-#define COLOR_YELLOW  ""
-#define COLOR_GREEN   ""
-#define COLOR_CYAN    ""
-#define COLOR_RESET   ""
+#define HIM_LOG_ERROR(fmt, ...)
 #endif
 
-// 日志标签定义 (4字符对齐)
-#define TAG_NONE    ""
-#define TAG_INIT    "[INIT]"
-#define TAG_LED     "[LED ]"
-#define TAG_FAN     "[FAN ]"
-#define TAG_BTN     "[BTN ]"
-#define TAG_SAFE    "[SAFE]"
-#define TAG_TILT    "[TILT]"
-#define TAG_SD      "[SD  ]"
-#define TAG_OFFL    "[OFFL]"
-#define TAG_PREV    "[PREV]"
-#define TAG_STAT    "[STAT]"
-#define TAG_DOOR    "[DOOR]"
-
-// 回车换行
-#define CR_LF      "\r\n"
-
-// 获取毫秒时间戳 (从启动开始)
-#define LOG_TIMESTAMP() (millis())
-
-// 日志宏定义 (带颜色, 时间戳, 标签)
-#if LOG_LEVEL >= 1
-#define LOG_ERROR(tag, fmt, ...) grbl_sendf(CLIENT_SERIAL, COLOR_RED "[E][%6lu]%s " fmt COLOR_RESET CR_LF, LOG_TIMESTAMP() , tag, ##__VA_ARGS__)
+#if HIM_LOG_LEVEL >= 2
+#define HIM_LOG_WARN(fmt, ...) grbl_sendf(CLIENT_SERIAL, HIM_LOG_FORMAT(W, fmt), ##__VA_ARGS__)
 #else
-#define LOG_ERROR(tag, fmt, ...)
+#define HIM_LOG_WARN(fmt, ...)
 #endif
 
-#if LOG_LEVEL >= 2
-#define LOG_WARN(tag, fmt, ...) grbl_sendf(CLIENT_SERIAL, COLOR_YELLOW "[W][%6lu]%s " fmt COLOR_RESET CR_LF, LOG_TIMESTAMP(), tag, ##__VA_ARGS__)
+#if HIM_LOG_LEVEL >= 3
+#define HIM_LOG_INFO(fmt, ...) grbl_sendf(CLIENT_SERIAL, HIM_LOG_FORMAT(I, fmt), ##__VA_ARGS__)
 #else
-#define LOG_WARN(tag, fmt, ...)
+#define HIM_LOG_INFO(fmt, ...)
 #endif
 
-#if LOG_LEVEL >= 3
-#define LOG_INFO(tag, fmt, ...) grbl_sendf(CLIENT_SERIAL, COLOR_GREEN "[I][%6lu]%s " fmt COLOR_RESET CR_LF, LOG_TIMESTAMP(), tag, ##__VA_ARGS__)
+#if HIM_LOG_LEVEL >= 4
+#define HIM_LOG_DEBUG(fmt, ...) grbl_sendf(CLIENT_SERIAL, HIM_LOG_FORMAT(D, fmt), ##__VA_ARGS__)
 #else
-#define LOG_INFO(tag, fmt, ...)
-#endif
-
-#if LOG_LEVEL >= 4
-#define LOG_DEBUG(tag, fmt, ...) grbl_sendf(CLIENT_SERIAL, COLOR_CYAN "[D][%6lu]%s " fmt COLOR_RESET CR_LF, LOG_TIMESTAMP(), tag, ##__VA_ARGS__)
-#else
-#define LOG_DEBUG(tag, fmt, ...)
+#define HIM_LOG_DEBUG(fmt, ...)
 #endif
 
 // ============================================================================
@@ -130,6 +96,9 @@ enum class LEDState {
 // 全局变量
 // ============================================================================
 
+// I2C 互斥锁 (保护传感器访问) 
+static SemaphoreHandle_t i2c_mutex = NULL;
+
 // 系统状态名称
 static const char* sys_state_names[] = {
     "Idle",         // Must be zero.
@@ -149,6 +118,9 @@ static UserOutput::AnalogOutput* fan_output = nullptr;
 
 // QMI8658A 倾斜传感器对象
 static QMI8658 imu;
+
+// 自动归位请求标志 (由 machine_after_init_message 设置, safety_monitor_task 处理)
+static bool auto_homing_requested = false;
 
 // 循环任务时间
 #define LOOP_TASK_PERIOD_MS (20)
@@ -235,26 +207,26 @@ bool init_tilt_sensor() {
     if (!wire_initialized) {
         Wire.begin(TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
         wire_initialized = true;
-        LOG_INFO(TAG_TILT, "I2C initialized (SDA=%d, SCL=%d)", TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
+        HIM_LOG_INFO("I2C initialized (SDA=%d, SCL=%d)", TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
     }
 
     // 1. 验证通信
     uint8_t whoami = 0;
     if (!readRegister_u8(QMI8658_WHO_AM_I, whoami)) {
-        LOG_ERROR(TAG_TILT, "Failed to read WHO_AM_I");
+        HIM_LOG_ERROR("Failed to read WHO_AM_I");
         return false;
     }
 
     if (whoami != 0x05) {
-        LOG_ERROR(TAG_TILT, "WHO_AM_I mismatch: 0x%02X (expected 0x05)", whoami);
+        HIM_LOG_ERROR("WHO_AM_I mismatch: 0x%02X (expected 0x05)", whoami);
         return false;
     }
 
-    LOG_INFO(TAG_TILT, "WHO_AM_I = 0x%02X ✓", whoami);
+    HIM_LOG_INFO("WHO_AM_I = 0x%02X ✓", whoami);
 
     // 2. 初始化 CTRL1 (不是复位! )
     if (!writeRegister(QMI8658_CTRL1, 0x60)) {
-        LOG_ERROR(TAG_TILT, "Failed to write CTRL1");
+        HIM_LOG_ERROR("Failed to write CTRL1");
         return false;
     }
     vTaskDelay(pdMS_TO_TICKS(10));
@@ -262,13 +234,13 @@ bool init_tilt_sensor() {
     // 3. 配置加速度计: ±8g (0x02), 1000Hz (0x03)
     // CTRL2 = (Range << 4) | ODR = (0x02 << 4) | 0x03 = 0x23
     if (!writeRegister(QMI8658_CTRL2, 0x23)) {
-        LOG_ERROR(TAG_TILT, "Failed to write CTRL2");
+        HIM_LOG_ERROR("Failed to write CTRL2");
         return false;
     }
 
     // 4. 关键修复: 启用加速度计 (写 CTRL7, 不是 CTRL1! )
     if (!writeRegister(QMI8658_CTRL7, 0x01)) {  // 0x01 = 启用加速度计
-        LOG_ERROR(TAG_TILT, "Failed to enable accelerometer (CTRL7)");
+        HIM_LOG_ERROR("Failed to enable accelerometer (CTRL7)");
         return false;
     }
 
@@ -278,7 +250,7 @@ bool init_tilt_sensor() {
     uint8_t ctrl2 = 0, ctrl7 = 0;
     readRegister_u8(QMI8658_CTRL2, ctrl2);
     readRegister_u8(QMI8658_CTRL7, ctrl7);
-    LOG_INFO(TAG_TILT, "CTRL2=0x%02X, CTRL7=0x%02X", ctrl2, ctrl7);
+    HIM_LOG_INFO("CTRL2=0x%02X, CTRL7=0x%02X", ctrl2, ctrl7);
 
     // 6. 读取一次数据验证
     int16_t ax = 0, ay = 0, az = 0;
@@ -286,7 +258,7 @@ bool init_tilt_sensor() {
     readRegister_i16(QMI8658_AY_L, ay);
     readRegister_i16(QMI8658_AZ_L, az);
 
-    LOG_INFO(TAG_TILT, "Initial raw data: AX=%d, AY=%d, AZ=%d", ax, ay, az);
+    HIM_LOG_INFO("Initial raw data: AX=%d, AY=%d, AZ=%d", ax, ay, az);
 
     return true;
 }
@@ -299,7 +271,7 @@ bool check_tilt_sensor(uint8_t debug_log) {
         !readRegister_i16(QMI8658_AY_L, raw_ay) ||
         !readRegister_i16(QMI8658_AZ_L, raw_az)) {
         if (debug_log) {
-            LOG_ERROR(TAG_TILT, "Failed to read accel data");
+            HIM_LOG_ERROR("Failed to read accel data");
         }
         return false;
     }
@@ -316,7 +288,7 @@ bool check_tilt_sensor(uint8_t debug_log) {
     bool is_tilted = (tilt_angle > 15.0);  // 15度阈值
 
     if (debug_log || is_tilted) {
-        LOG_INFO(TAG_TILT, "%.1f° (X=%.1f Y=%.1f Z=%.1f mg) [Raw: %d %d %d]",
+        HIM_LOG_INFO("%.1f° (X=%.1f Y=%.1f Z=%.1f mg) [Raw: %d %d %d]",
             tilt_angle, accelX, accelY, accelZ, raw_ax, raw_ay, raw_az);
     }
 
@@ -330,8 +302,39 @@ bool check_tilt_sensor(uint8_t debug_log) {
 
 // 初始化传感器
 bool init_tilt_sensor() {
-    if (!imu.begin(TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN)) {
-        LOG_ERROR(TAG_TILT, "QMI8658 init failed");
+    // 创建 I2C 互斥锁 (只创建一次) 
+    if (i2c_mutex == NULL) {
+        i2c_mutex = xSemaphoreCreateMutex();
+        if (i2c_mutex == NULL) {
+            HIM_LOG_ERROR("Failed to create I2C mutex");
+            return false;
+        }
+        HIM_LOG_INFO("I2C mutex created");
+    }
+
+    // 修复 1: 显式初始化 I2C 总线, 确保频率有效
+    // 在调用 imu.begin() 之前, 先初始化 Wire
+    static bool wire_initialized = false;
+    if (!wire_initialized) {
+        Wire.begin(TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
+        Wire.setClock(100000);  // 显式设置 100kHz (标准模式)
+        wire_initialized = true;
+        HIM_LOG_INFO("I2C bus initialized: 100kHz (SDA=%d, SCL=%d)",
+                 TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
+        vTaskDelay(pdMS_TO_TICKS(10));  // 等待总线稳定
+    }
+
+    // 修复 2: 添加异常捕获, 防止库内部崩溃
+    bool init_success = false;
+    try {
+        init_success = imu.begin(TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
+    } catch (...) {
+        HIM_LOG_ERROR("QMI8658 init threw exception");
+        return false;
+    }
+
+    if (!init_success) {
+        HIM_LOG_ERROR("QMI8658 init failed");
         return false;
     }
 
@@ -339,16 +342,29 @@ bool init_tilt_sensor() {
     imu.setAccelODR(QMI8658_ACCEL_ODR_1000HZ);
     imu.enableSensors(QMI8658_ENABLE_ACCEL);
 
-    LOG_INFO(TAG_TILT, "QMI8658 initialized (SDA=%d, SCL=%d)", TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
+    HIM_LOG_INFO("QMI8658 initialized (SDA=%d, SCL=%d)", TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
     return true;
 }
 
 // 读取传感器, 返回是否倾斜
 bool check_tilt_sensor(uint8_t debug_log) {
     static uint8_t consecutive_failures = 0;
+    static bool last_tilt_state = false;
     const uint8_t MAX_CONSECUTIVE_FAILURES = 5;
     const uint8_t SAMPLE_COUNT = 16;
     const float TILT_THRESHOLD_DEG = 30.0f;
+
+    // 检查互斥锁是否已初始化
+    if (i2c_mutex == NULL) {
+        HIM_LOG_ERROR("I2C mutex not initialized");
+        return last_tilt_state;
+    }
+
+    // 尝试获取互斥锁 (超时 100ms) 
+    if (xSemaphoreTake(i2c_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
+        HIM_LOG_WARN("Failed to acquire I2C mutex (timeout), using last state");
+        return last_tilt_state;
+    }
 
     float sum_X = 0.0f, sum_Y = 0.0f, sum_Z = 0.0f;
     float min_X = 0.0f, max_X = 0.0f;
@@ -379,18 +395,21 @@ bool check_tilt_sensor(uint8_t debug_log) {
         }
     }
 
+    // 释放互斥锁
+    xSemaphoreGive(i2c_mutex);
+
     if (valid_samples < 4) {
-        LOG_ERROR(TAG_TILT, "sensor valid samples : %d", valid_samples);
+        HIM_LOG_ERROR("sensor valid samples : %d", valid_samples);
         consecutive_failures++;
         if (consecutive_failures >= MAX_CONSECUTIVE_FAILURES) {
-            LOG_INFO(TAG_TILT, "Consecutive failures: %d, attempting re-initialization", consecutive_failures);
+            HIM_LOG_INFO("Consecutive failures: %d, attempting re-initialization", consecutive_failures);
             if (init_tilt_sensor()) {
-                LOG_INFO(TAG_TILT, "Re-initialization succeeded");
+                HIM_LOG_INFO("Re-initialization succeeded");
             } else {
-                LOG_ERROR(TAG_TILT, "Re-initialization failed, will retry on next failure");
+                HIM_LOG_ERROR("Re-initialization failed, will retry on next failure");
             }
         }
-        return false;
+        return last_tilt_state;
     }
 
     consecutive_failures = 0;
@@ -402,8 +421,8 @@ bool check_tilt_sensor(uint8_t debug_log) {
     // 归一化重力向量
     float magnitude = sqrt(avg_X * avg_X + avg_Y * avg_Y + avg_Z * avg_Z);
     if (magnitude < 500.0f) {
-        LOG_ERROR(TAG_TILT, "Low magnitude: %.1f mg", magnitude);
-        return false;
+        HIM_LOG_ERROR("Low magnitude: %.1f mg", magnitude);
+        return last_tilt_state;
     }
 
     float norm_X = avg_X / magnitude * 1000.0f;
@@ -415,10 +434,12 @@ bool check_tilt_sensor(uint8_t debug_log) {
     bool is_tilted = (tilt_angle > TILT_THRESHOLD_DEG);
 
     if (debug_log || is_tilted) {
-        LOG_INFO(TAG_TILT, "%.1f° (Norm: X=%.0f Y=%.0f Z=%.0f mg, Samples=%d/%d)",
+        HIM_LOG_INFO("%.1f° (Norm: X=%.0f Y=%.0f Z=%.0f mg, Samples=%d/%d)",
             tilt_angle, norm_X, norm_Y, norm_Z, valid_samples, SAMPLE_COUNT);
     }
 
+    // 更新上次状态
+    last_tilt_state = is_tilted;
     return is_tilted;
 }
 
@@ -432,33 +453,33 @@ bool check_tilt_sensor(uint8_t debug_log) {
 void start_offline_engraving() {
     SDState sd_state = get_sd_state(true);  // 强制实际挂载
     if (sd_state != SDState::Idle) {
-        LOG_ERROR(TAG_SD, "SD card not ready (state=%d)", (int)sd_state);
+        HIM_LOG_ERROR("SD card not ready (state=%d)", (int)sd_state);
         return;
     }
 
     if (!SD.exists("/001.nc")) {
-        LOG_ERROR(TAG_SD, "File 001.nc not found! Listing SD root directory:");
+        HIM_LOG_ERROR("File 001.nc not found! Listing SD root directory:");
         File root = SD.open("/");
         if (root) {
             File file = root.openNextFile();
             int file_count = 0;
             while (file) {
                 if (!file.isDirectory()) {
-                    LOG_INFO(TAG_SD, "  - %s (%d bytes)", file.name(), file.size());
+                    HIM_LOG_INFO("  - %s (%d bytes)", file.name(), file.size());
                     file_count++;
                 }
                 file = root.openNextFile();
             }
             if (file_count == 0) {
-                LOG_INFO(TAG_SD, "  (no files found)");
+                HIM_LOG_INFO("  (no files found)");
             }
         } else {
-            LOG_ERROR(TAG_SD, "Failed to open root directory");
+            HIM_LOG_ERROR("Failed to open root directory");
         }
         return;
     }
 
-    LOG_INFO(TAG_OFFL, "Wait Homing complete, starting: 001.nc");
+    HIM_LOG_INFO("Wait Homing complete, starting: 001.nc");
     WebUI::inputBuffer.push("$H\r");
     WebUI::inputBuffer.push("$SD/Run=/001.nc\r");
 }
@@ -469,11 +490,13 @@ void preview_boundary() {
     float y_max = DEFAULT_Y_MAX_TRAVEL;
     char gcode[100];
 
-    LOG_INFO(TAG_PREV, "Wait Homing complete, Boundary: %.1f x %.1f mm (laser preview)", x_max, y_max);
+    HIM_LOG_INFO("Wait Homing complete, Boundary: %.1f x %.1f mm (laser preview)", x_max, y_max);
 
     WebUI::inputBuffer.push("$H\r");
     WebUI::inputBuffer.push("G90G0X0Y0\r");
-    WebUI::inputBuffer.push("M4S1\r");  // 打开激光, 最小功率 (S1 = 0.1%)
+
+    // 打开激光, 最小功率 (S1 = 0.1%)
+    WebUI::inputBuffer.push("M4S1\r");
 
     sprintf(gcode, "G1X%.1fY0F3000\r", x_max);
     WebUI::inputBuffer.push(gcode);
@@ -483,7 +506,8 @@ void preview_boundary() {
     WebUI::inputBuffer.push(gcode);
     WebUI::inputBuffer.push("G1X0Y0\r");
 
-    WebUI::inputBuffer.push("M5\r");  // 关闭激光
+    // 关闭激光
+    WebUI::inputBuffer.push("M5\r");
 }
 
 // ============================================================================
@@ -503,7 +527,7 @@ void preview_boundary() {
 
 // 按钮短按处理函数
 void handle_short_press() {
-    LOG_INFO(TAG_BTN, "Short press");
+    HIM_LOG_INFO("Short press");
 
     switch (sys.state) {
         case State::Idle:
@@ -511,17 +535,17 @@ void handle_short_press() {
             break;
 
         case State::Cycle:
-            LOG_INFO(TAG_BTN, "Pause");
+            HIM_LOG_INFO("Pause");
             sys_rt_exec_state.bit.feedHold = true;
             break;
 
         case State::Hold:
-            LOG_INFO(TAG_BTN, "Resume");
+            HIM_LOG_INFO("Resume");
             sys_rt_exec_state.bit.cycleStart = true;
             break;
 
         case State::Alarm:
-            LOG_INFO(TAG_BTN, "In ALARM, send $H");
+            HIM_LOG_INFO("In ALARM, send $H");
             WebUI::inputBuffer.push("$H\r");
             break;
 
@@ -529,34 +553,34 @@ void handle_short_press() {
             break;
 
         case State::Jog:
-            LOG_INFO(TAG_BTN, "Stop jog");
+            HIM_LOG_INFO("Stop jog");
             sys_rt_exec_state.bit.feedHold = true;
             break;
 
         case State::CheckMode:
-            LOG_INFO(TAG_BTN, "Exit check mode");
+            HIM_LOG_INFO("Exit check mode");
             WebUI::inputBuffer.push("?\r");
             break;
 
         case State::SafetyDoor:
-            LOG_INFO(TAG_BTN, "Safety door is open, please close it");
+            HIM_LOG_INFO("Safety door is open, please close it");
             WebUI::inputBuffer.push("?\r");
             break;
 
         case State::Sleep:
-            LOG_INFO(TAG_BTN, "Short press during Sleep");
+            HIM_LOG_INFO("Short press during Sleep");
             WebUI::inputBuffer.push("?\r");
             break;
 
         default:
-            LOG_INFO(TAG_BTN, "Unknown state %d", sys.state);
+            HIM_LOG_INFO("Unknown state %d", sys.state);
             break;
     }
 }
 
 // 按钮长按处理函数
 void handle_long_press_3s() {
-    LOG_INFO(TAG_BTN, "Long press 3s");
+    HIM_LOG_INFO("Long press 3s");
 
     switch (sys.state) {
         case State::Idle:
@@ -565,7 +589,7 @@ void handle_long_press_3s() {
 
         case State::Cycle:
         case State::Hold:
-            LOG_INFO(TAG_BTN, "Stop");
+            HIM_LOG_INFO("Stop");
             sys_rt_exec_state.bit.reset = true;
             break;
 
@@ -582,7 +606,7 @@ void handle_long_press_3s() {
 
 // 按钮超长按处理函数
 void handle_long_press_10s() {
-    LOG_INFO(TAG_BTN, "Long press 10s - Reset WiFi to AP");
+    HIM_LOG_INFO("Long press 10s - Reset WiFi to AP");
     WebUI::inputBuffer.push("[ESP410]AP\r");
     vTaskDelay(pdMS_TO_TICKS(1000));
     WebUI::inputBuffer.push("[ESP444]RESTART\r");
@@ -600,32 +624,8 @@ void button_monitor_task(void* parameter) {
     static ButtonState button_state = ButtonState::IDLE;
     static uint32_t button_press_time = 0;
     static bool button_action_executed = false;
-    static bool wifi_ready = false;
 
     while (true) {
-        if (!wifi_ready) {
-            wifi_mode_t mode = WiFi.getMode();
-            if (mode == WIFI_AP || ((mode == WIFI_STA || mode == WIFI_AP_STA) && WiFi.status() == WL_CONNECTED)) {
-                wifi_ready = true;
-
-                if (sys.state == State::Alarm) {
-                    bool door_open = (DEFAULT_SAFETY_DOOR_ENABLED == 1) && (digitalRead(SAFETY_DOOR_PIN) == LOW);
-                    bool is_tilted = (DEFAULT_TILT_SENSOR_ENABLED == 1) && check_tilt_sensor(false);
-
-                    if (door_open) {
-                        LOG_WARN(TAG_BTN, "Skip auto-homing: safety door is open");
-                    } else if (is_tilted) {
-                        LOG_WARN(TAG_BTN, "Skip auto-homing: tilt sensor triggered");
-                    } else {
-                        LOG_INFO(TAG_BTN, "Auto-homing triggered (state=Alarm)");
-                        WebUI::inputBuffer.push("$H\r");
-                    }
-                } else {
-                    LOG_INFO(TAG_BTN, "Skip auto-homing: state=%d (not Alarm)", (int)sys.state);
-                }
-            }
-        }
-
         bool button_pressed = (digitalRead(USER_BUTTON_PIN) == LOW);
         uint32_t now = millis();
         uint32_t duration = now - button_press_time;
@@ -656,16 +656,12 @@ void button_monitor_task(void* parameter) {
                 break;
 
             case ButtonState::SHORT_PRESS_DETECTED:
-                if (wifi_ready) {
-                    handle_short_press();
-                }
+                handle_short_press();
                 button_state = ButtonState::IDLE;
                 break;
 
             case ButtonState::LONG_PRESS_3S_DETECTED:
-                if (wifi_ready) {
-                    handle_long_press_3s();
-                }
+                handle_long_press_3s();
                 button_state = ButtonState::IDLE;
                 break;
 
@@ -833,7 +829,7 @@ void update_led_auto_control() {
     }
 
     if (current_sys_state != sys.state) {
-        LOG_INFO(TAG_LED, "State: %s -> %s", sys_state_names[(int)current_sys_state], sys_state_names[(int)sys.state]);
+        HIM_LOG_INFO("State: %s -> %s", sys_state_names[(int)current_sys_state], sys_state_names[(int)sys.state]);
         current_sys_state = sys.state;
     }
 
@@ -891,9 +887,9 @@ void update_fan_auto_control() {
 
     if (should_fan_on != last_fan_on) {
         if (should_fan_on) {
-            LOG_INFO(TAG_FAN, "Fan ON");
+            HIM_LOG_INFO("Fan ON");
         } else {
-            LOG_INFO(TAG_FAN, "Fan OFF (cooldown complete)");
+            HIM_LOG_INFO("Fan OFF (cooldown complete)");
         }
         last_fan_on = should_fan_on;
     }
@@ -903,27 +899,23 @@ void update_fan_auto_control() {
 
 // LED 和风扇控制任务 (包含内存监控)
 void led_fan_control_task(void* parameter) {
-    // 内存监控配置
-    static uint32_t last_mem_log_time = 0;
-    const uint32_t MEM_LOG_INTERVAL_MS = 10000;  // 每 10 秒打印一次
-
     while (true) {
         update_led_auto_control();
 
         update_fan_auto_control();
 
-        // 内存监控 (定期打印)
+#if HIM_LOG_LEVEL >= 4
+        static uint32_t last_mem_log_time = 0;
+        const uint32_t MEM_LOG_INTERVAL_MS = 10000;
         uint32_t now = millis();
         if (now - last_mem_log_time >= MEM_LOG_INTERVAL_MS) {
             uint32_t free_heap = ESP.getFreeHeap();
             uint32_t min_free_heap = ESP.getMinFreeHeap();
             uint32_t max_alloc_heap = ESP.getMaxAllocHeap();
-
-            LOG_DEBUG(TAG_STAT, "Memory: Free=%u, Min=%u, MaxAlloc=%u bytes",
-                free_heap, min_free_heap, max_alloc_heap);
-
+            HIM_LOG_DEBUG("heap: %u / %u / %u", max_alloc_heap, free_heap, min_free_heap);
             last_mem_log_time = now;
         }
+#endif
 
         vTaskDelay(pdMS_TO_TICKS(LOOP_TASK_PERIOD_MS));
     }
@@ -934,34 +926,37 @@ void led_fan_control_task(void* parameter) {
 // ============================================================================
 
 void safety_monitor_task(void* parameter) {
-    LOG_INFO(TAG_SAFE, "DEFAULT_SAFETY_DOOR_ENABLED: %d", DEFAULT_SAFETY_DOOR_ENABLED);
-    LOG_INFO(TAG_SAFE, "DEFAULT_TILT_SENSOR_ENABLED: %d", DEFAULT_TILT_SENSOR_ENABLED);
+    HIM_LOG_INFO("DEFAULT_SAFETY_DOOR_ENABLED: %d", DEFAULT_SAFETY_DOOR_ENABLED);
+    HIM_LOG_INFO("DEFAULT_TILT_SENSOR_ENABLED: %d", DEFAULT_TILT_SENSOR_ENABLED);
 
     bool last_door_state = false;
     bool last_tilt_state = false;
     State state_before_safety_door = State::Idle;
 
     while (true) {
+        // 门状态检查
         bool door_open_now = false;
         if (DEFAULT_SAFETY_DOOR_ENABLED == 1) {
             door_open_now = (digitalRead(SAFETY_DOOR_PIN) == LOW);
         }
         if (door_open_now != last_door_state) {
-            LOG_INFO(TAG_DOOR, "Door %s (pin: %d)",
+            HIM_LOG_INFO("Door %s (pin: %d)",
                 door_open_now ? "opened" : "closed",
                 digitalRead(SAFETY_DOOR_PIN));
             last_door_state = door_open_now;
         }
 
+        // 倾斜传感器检查
         bool tilt_now = false;
         if (DEFAULT_TILT_SENSOR_ENABLED == 1) {
             tilt_now = check_tilt_sensor(false);
         }
         if (tilt_now != last_tilt_state) {
-            LOG_INFO(TAG_TILT, "Tilt %s", tilt_now ? "detected" : "cleared");
+            HIM_LOG_INFO("Tilt %s", tilt_now ? "detected" : "cleared");
             last_tilt_state = tilt_now;
         }
 
+        // 安全门触发处理
         if (door_open_now || tilt_now) {
             switch (sys.state) {
                 case State::Idle:
@@ -970,7 +965,7 @@ void safety_monitor_task(void* parameter) {
                 case State::Cycle:
                 case State::Hold:
                 case State::Jog:
-                    LOG_INFO(TAG_SAFE, "Safety door opened (was in %s state)", sys_state_names[(int)sys.state]);
+                    HIM_LOG_INFO("Safety door opened (was in %s state)", sys_state_names[(int)sys.state]);
                     state_before_safety_door = sys.state;
                     sys_rt_exec_state.bit.safetyDoor = true;
                     break;
@@ -981,26 +976,27 @@ void safety_monitor_task(void* parameter) {
                     break;
             }
         } else {
+            // 安全门关闭, 恢复状态
             switch (sys.state) {
                 case State::SafetyDoor:
                     if (!sys.suspend.bit.safetyDoorAjar) {
-                        LOG_INFO(TAG_SAFE, "Safety door closed (was in %s before)", sys_state_names[(int)state_before_safety_door]);
+                        HIM_LOG_INFO("Safety door closed (was in %s before)", sys_state_names[(int)state_before_safety_door]);
                         sys.suspend.bit.safetyDoorAjar = false;
 
                         if (state_before_safety_door == State::Hold) {
                             sys.suspend.value = 0;
                             sys.suspend.bit.holdComplete = true;
                             sys.state = State::Hold;
-                            LOG_INFO(TAG_SAFE, "Returned to Hold state (was paused before door opened)");
+                            HIM_LOG_INFO("Returned to Hold state (was paused before door opened)");
                         } else if (state_before_safety_door == State::Cycle || state_before_safety_door == State::Jog) {
                             sys.suspend.value = 0;
                             sys.suspend.bit.holdComplete = true;
                             sys.state = State::Hold;
-                            LOG_INFO(TAG_SAFE, "Entered Hold state (was moving before, press button to resume)");
+                            HIM_LOG_INFO("Entered Hold state (was moving before, press button to resume)");
                         } else {
                             sys.suspend.value = 0;
                             sys.state = state_before_safety_door;
-                            LOG_INFO(TAG_SAFE, "Returned to %s state", sys_state_names[(int)state_before_safety_door]);
+                            HIM_LOG_INFO("Returned to %s state", sys_state_names[(int)state_before_safety_door]);
                         }
                         state_before_safety_door = State::Idle;
                     }
@@ -1018,6 +1014,22 @@ void safety_monitor_task(void* parameter) {
             }
         }
 
+        if (auto_homing_requested) {
+            auto_homing_requested = false;
+            if (sys.state == State::Alarm) {
+                if (door_open_now) {
+                    HIM_LOG_WARN("Skip auto-homing: safety door is open");
+                } else if (tilt_now) {
+                    HIM_LOG_WARN("Skip auto-homing: tilt sensor triggered");
+                } else {
+                    HIM_LOG_INFO("Auto-homing triggered (state=Alarm)");
+                    WebUI::inputBuffer.push("$H\r");
+                }
+            } else {
+                HIM_LOG_INFO("Skip auto-homing: state=%s (not Alarm)", sys_state_names[(int)sys.state]);
+            }
+        }
+
         vTaskDelay(pdMS_TO_TICKS(LOOP_TASK_PERIOD_MS));
     }
 }
@@ -1027,14 +1039,14 @@ void safety_monitor_task(void* parameter) {
 // ============================================================================
 
 void machine_init() {
-    LOG_INFO(TAG_INIT, "Wainlux K11 HIM Custom Init (Full Rewrite)");
-    LOG_INFO(TAG_INIT, "Compiled: %s at %s", __DATE__, __TIME__);
-    LOG_INFO(TAG_INIT, "ESP32 SDK: %s", ESP.getSdkVersion());
+    HIM_LOG_INFO("Wainlux K11 HIM Custom Init (Full Rewrite)");
+    HIM_LOG_INFO("Compiled: %s at %s", __DATE__, __TIME__);
+    HIM_LOG_INFO("ESP32 SDK: %s", ESP.getSdkVersion());
 
     // 初始化 GPIO
     pinMode(USER_BUTTON_PIN, INPUT_PULLUP);
     pinMode(SAFETY_DOOR_PIN, INPUT_PULLUP);
-    LOG_INFO(TAG_INIT, "%s(%d) | %s(%d)", TAG_BTN, USER_BUTTON_PIN, TAG_DOOR, SAFETY_DOOR_PIN);
+    HIM_LOG_INFO("Button pin: %d | Door pin: %d", USER_BUTTON_PIN, SAFETY_DOOR_PIN);
 
     // 初始化 PWM (使用 UserOutput::AnalogOutput)
     led_output = new UserOutput::AnalogOutput(0, STATUS_LED_PIN, PWM_FREQ_SHARED);
@@ -1047,11 +1059,11 @@ void machine_init() {
     (void)check_tilt_sensor(true);
 
     // 创建任务 (固定到核心 1)
+    xTaskCreatePinnedToCore(led_fan_control_task, "LEDFan", 4096, NULL, 1, NULL, 1);
     xTaskCreatePinnedToCore(button_monitor_task, "Button", 4096, NULL, 1, NULL, 1);
     xTaskCreatePinnedToCore(safety_monitor_task, "Safety", 4096, NULL, 1, NULL, 1);
-    xTaskCreatePinnedToCore(led_fan_control_task, "LED+Fan", 4096, NULL, 1, NULL, 1);
 
-    LOG_INFO(TAG_INIT, "Custom tasks created: Button, Safety, LED+Fan");
+    HIM_LOG_INFO("Custom tasks created: Button, Safety, LED+Fan");
 }
 
 // ============================================================================
@@ -1059,5 +1071,13 @@ void machine_init() {
 // ============================================================================
 
 void user_m30() {
-    LOG_INFO(TAG_NONE, "Program complete");
+    HIM_LOG_INFO("Program complete");
+}
+
+// ============================================================================
+// 初始化消息后回调 (自动归位)
+// ============================================================================
+
+void machine_after_init_message() {
+    auto_homing_requested = true;
 }

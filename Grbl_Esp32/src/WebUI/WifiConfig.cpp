@@ -35,6 +35,8 @@ namespace WebUI {
 
     String WiFiConfig::_hostname          = "";
     bool   WiFiConfig::_events_registered = false;
+    bool   WiFiConfig::_auto_reconnect_enabled = false;
+    int32_t WiFiConfig::_reconnect_attempt = 0;
 
     WiFiConfig::WiFiConfig() {}
 
@@ -223,10 +225,37 @@ namespace WebUI {
                 }
                 break;
             case SYSTEM_EVENT_STA_GOT_IP:
+                // 连接成功后重置重连计数器
                 grbl_sendf(CLIENT_ALL, "[MSG:Connected with %s]\r\n", WiFi.localIP().toString().c_str());
+                _reconnect_attempt = 0;
                 break;
             case SYSTEM_EVENT_STA_DISCONNECTED:
                 grbl_send(CLIENT_ALL, "[MSG:Disconnected]\r\n");
+
+                // 如果启用了自动重连, 尝试重新连接
+                if (_auto_reconnect_enabled) {
+                    int32_t max_retry = wifi_sta_retry_count->get();
+                    bool infinite_retry = (max_retry == 0);
+
+                    // 检查是否还可以重试
+                    if (infinite_retry || _reconnect_attempt < max_retry) {
+                        _reconnect_attempt++;
+
+                        if (infinite_retry) {
+                            grbl_sendf(CLIENT_ALL, "[MSG:Auto-reconnecting (attempt %d)...]\r\n", _reconnect_attempt);
+                        } else {
+                            grbl_sendf(CLIENT_ALL, "[MSG:Auto-reconnecting (attempt %d/%d)...]\r\n", _reconnect_attempt, max_retry);
+                        }
+
+                        // 使用 WiFi.reconnect() 而不是 WiFi.begin()
+                        // reconnect() 会使用之前保存的 SSID 和密码
+                        WiFi.reconnect();
+                    } else {
+                        // 达到最大重试次数后禁用自动重连
+                        grbl_sendf(CLIENT_ALL, "[MSG:Auto-reconnect failed after %d attempts]\r\n", max_retry);
+                        _auto_reconnect_enabled = false;
+                    }
+                }
                 break;
             default:
                 break;
@@ -328,9 +357,9 @@ namespace WebUI {
                 uint8_t random_mac[6];
                 memcpy(random_mac, current_mac, 6);
 
-                // 设置本地管理位（bit 1 of first byte = 1）
+                // 设置本地管理位 (bit 1 of first byte = 1) 
                 random_mac[0] |= 0x02;
-                // 清除多播位（bit 0 of first byte = 0）
+                // 清除多播位 (bit 0 of first byte = 0) 
                 random_mac[0] &= 0xFE;
 
                 // 随机化后三个字节
@@ -378,6 +407,9 @@ namespace WebUI {
                 COMMANDS::wait(200);
 
                 if (ConnectSTA2AP()) {
+                    // 连接成功后启用运行时自动重连
+                    _auto_reconnect_enabled = true;
+                    _reconnect_attempt = 0;
                     return true;
                 }
             } else {
@@ -449,6 +481,10 @@ namespace WebUI {
      */
 
     void WiFiConfig::StopWiFi() {
+        // 禁用运行时自动重连
+        _auto_reconnect_enabled = false;
+        _reconnect_attempt = 0;
+
         //Sanity check
         if ((WiFi.getMode() == WIFI_STA) || (WiFi.getMode() == WIFI_AP_STA)) {
             WiFi.disconnect(true);
@@ -486,12 +522,14 @@ namespace WebUI {
             if (!StartSTA()) {
                 // STA connection failed after all retries, switch to AP mode
                 grbl_send(CLIENT_ALL, "[MSG:Switching to AP mode]\r\n");
+                _auto_reconnect_enabled = false;  // 切换到 AP 模式时禁用自动重连
                 StartAP();
             }
             //start services
             wifi_services.begin();
         } else {
             WiFi.mode(WIFI_OFF);
+            _auto_reconnect_enabled = false;  // WiFi 关闭时禁用自动重连
         }
     }
 

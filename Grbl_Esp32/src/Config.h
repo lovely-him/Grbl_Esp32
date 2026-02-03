@@ -96,7 +96,7 @@ const int MAX_N_AXIS = 6;
 //#define CONNECT_TO_SSID  "your SSID"
 //#define SSID_PASSWORD  "your SSID password"
 //CONFIGURE_EYECATCH_BEGIN (DO NOT MODIFY THIS LINE)
-#define ENABLE_BLUETOOTH  // enable bluetooth
+// #define ENABLE_BLUETOOTH  // enable bluetooth
 
 #define ENABLE_SD_CARD  // enable use of SD Card to run jobs
 
@@ -107,7 +107,7 @@ const int MAX_N_AXIS = 6;
 #endif
 
 #define ENABLE_HTTP                //enable HTTP and all related services
-// #define ENABLE_OTA                 //enable OTA
+// #define ENABLE_OTA              //enable OTA
 #define ENABLE_TELNET              //enable telnet
 #define ENABLE_TELNET_WELCOME_MSG  //display welcome string when connect to telnet
 #define ENABLE_MDNS                //enable mDNS discovery

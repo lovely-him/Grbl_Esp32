@@ -9,6 +9,41 @@
 
 ---
 
+## 2026-02-03
+
+### Bug 修复 (Fixes)
+- fix(ssdp): 修复定时器竞态条件和内存分配异常
+  - 添加 parsePacket() 和 buffer 分配的异常捕获
+  - 修复定时器回调中的竞态条件，添加 ets_timer_done()
+  - 防止 WiFi 不稳定时的崩溃问题
+
+### 新功能 (Features)
+- feat(skills): 新增 fix-punctuation 开发工具
+  - 自动修复代码文件中的中文标点符号
+  - 支持 C/C++, Python, JavaScript 等多种语言
+  - 批量处理和通配符匹配
+
+### 重构 (Refactoring)
+- refactor(log): 统一日志系统格式
+  - FileTransferServer: 简化日志宏定义，使用标准格式
+  - wainlux_k11_HIM: 统一日志格式，添加函数名和行号
+  - 将动态分配的 RX buffer 改为静态分配，提高稳定性
+
+### 文档更新 (Documentation)
+- docs: 重组崩溃分析文档结构
+  - 新增 ESP32 崩溃分析方法论文档
+  - 整理 4 个崩溃分析案例（ArduinoOTA, 文件传输, SSDP, SD 卡）
+  - 移除旧的日志分析文档，统一到崩溃分析目录
+- docs: 新增 WiFi 运行时断联自动重连机制实现文档
+
+### 其他变更 (Others)
+- style: 修复全项目中文标点符号
+  - 修复 225 个文件中的中文标点符号
+  - 统一使用英文标点符号（逗号、句号、冒号等）
+  - 提高代码可读性和规范性
+
+---
+
 ## 2026-01-31
 
 ### 新功能 (Features)

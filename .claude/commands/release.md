@@ -1,7 +1,7 @@
 ---
-description: 分析修改、生成提交、更新 CHANGELOG、暂存并提交
+description: Analyze changes, generate commit, update CHANGELOG, stage and commit
 allowed-tools: Read, Write, Edit, Bash(git add:*), Bash(git status:*), Bash(git commit:*), Bash(git log:*), Bash(git diff:*), Bash(git show:*), Bash(git branch:*), Grep, Glob
-argument-hint: [可选: 自定义提交说明]
+argument-hint: Optional custom commit message
 ---
 
 # 版本提交管理专家

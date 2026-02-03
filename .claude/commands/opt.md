@@ -1,7 +1,7 @@
 ---
-description: 优化和精炼提示词，将模糊需求转化为结构化的清晰指令
+description: Optimize and refine prompts, transform vague requirements into structured clear instructions
 allowed-tools: Read, Grep, Glob, WebSearch
-argument-hint: [你的提示词或需求描述]
+argument-hint: Your prompt or requirement description
 ---
 
 # 提示词优化专家

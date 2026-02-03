@@ -1,0 +1,355 @@
+[MSG:Restart ongoing]
+ok
+ok
+ets Jul 29 2019 12:21:46
+
+rst:0xc (SW_CPU_RESET),boot:0x17 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:1
+load:0x3fff0018,len:4
+load:0x3fff001c,len:1216
+ho 0 tail 12 room 4
+load:0x40078000,len:9720
+ho 0 tail 12 room 4
+load:0x40080400,len:6352
+entry 0x400806b8
+
+[MSG:Grbl_ESP32 Ver 1.3a Date 20211103]
+[MSG:Compiled with ESP32 SDK:v3.2.3-14-gd3e562907]
+[MSG:Using machine:Genmitsu_Kiosk_V07_HIM]
+[MSG:Axis count 3]
+[MSG:RMT Steps]
+[MSG:Init Motors]
+[MSG:X  Axis Standard Stepper Step:GPIO(33) Dir:GPIO(32) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Y  Axis Standard Stepper Step:GPIO(26) Dir:GPIO(25) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Z  Axis Standard Stepper Step:GPIO(5) Dir:GPIO(18) Disable:GPIO(27) Limits(0.000,1000.000)]
+[I][machine_init:1042] Wainlux K11 HIM Custom Init (Full Rewrite)
+[I][machine_init:1043] Compiled: Feb  3 2026 at 09:48:37
+[I][machine_init:1044] ESP32 SDK: v3.2.3-14-gd3e562907
+[I][machine_init:1049] Button pin: 19 | Door pin: 17
+[MSG:User Analog Output:0 on Pin:GPIO(23) Freq:25000Hz]
+[MSG:User Analog Output:1 on Pin:GPIO(16) Freq:25000Hz]
+[I][init_tilt_sensor:312] I2C mutex created
+[I][init_tilt_sensor:323] I2C bus initialized: 100kHz (SDA=22, SCL=4)
+[I][init_tilt_sensor:345] QMI8658 initialized (SDA=22, SCL=4)
+[I][check_tilt_sensor:438] 1.5° (Norm: X=21 Y=-15 Z=-1000 mg, Samples=16/16)
+[I][machine_init:1066] Custom tasks created: Button, Safety, LED+Fan
+[I][safety_monitor_task:928] DEFAULT_SAFETY_DOOR_ENABLED: 1
+[I][safety_monitor_task:929] DEFAULT_TILT_SENSOR_ENABLED: 1
+[MSG:Laser spindle on Pin:GPIO(21), Enbl:None, Freq:5000Hz, Res:13bits Laser mode:On]
+[I][update_led_auto_control:832] State: Idle -> Alarm
+[MSG:Fixed MAC: 88:57:21:C4:E1:84]
+[MSG:Connecting MT3000 (attempt 1)]
+[MSG:Start DHCP with hostname: grblesp]
+[MSG:Start DHCP with hostname: grblesp]
+[MSG:Connecting.]
+[MSG:Connecting..]
+[MSG:Connecting...]
+[MSG:Connecting....]
+[MSG:Connecting.]
+[MSG:Connected with 192.168.8.177]
+[MSG:Start mDNS with hostname:http://grblesp.local/]
+[MSG:SSDP Started]
+[MSG:HTTP Started]
+[MSG:TELNET Started 8080]
+[I][begin:117] Server started on port 8081 (static buffer: 34816 bytes)
+[MSG:X  Axis limit switch on pin GPIO(36)]
+[MSG:Y  Axis limit switch on pin GPIO(35)]
+
+Grbl 1.3a ['$' for help]
+[MSG:'$H'|'$X' to unlock]
+[I][safety_monitor_task:1024] Auto-homing triggered (state=Alarm)
+[I][update_led_auto_control:832] State: Alarm -> Homing
+[I][update_led_auto_control:832] State: Homing -> Idle
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][processHeaderPacket:324] No SD Card
+[I][processHeaderPacket:359] Receiving file: /test.txt
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][processHeaderPacket:324] No SD Card
+[I][processHeaderPacket:359] Receiving file: /test_1kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][processHeaderPacket:324] No SD Card
+[I][processHeaderPacket:359] Receiving file: /test_4kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][processHeaderPacket:324] No SD Card
+[I][processHeaderPacket:359] Receiving file: /test_8kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][processHeaderPacket:324] No SD Card
+[I][processHeaderPacket:359] Receiving file: /test_16kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][processHeaderPacket:324] No SD Card
+[I][processHeaderPacket:359] Receiving file: /test_32kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][processHeaderPacket:324] No SD Card
+[I][processHeaderPacket:359] Receiving file: /test_100kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][processHeaderPacket:324] No SD Card
+[I][processHeaderPacket:359] Receiving file: /test_10mb.bin
+[I][processDataPacket:407] Progress: packet 10 received
+[I][processDataPacket:407] Progress: packet 20 received
+[I][processDataPacket:407] Progress: packet 30 received
+[I][processDataPacket:407] Progress: packet 40 received
+[I][processDataPacket:407] Progress: packet 50 received
+[I][processDataPacket:407] Progress: packet 60 received
+[I][processDataPacket:407] Progress: packet 70 received
+[I][processDataPacket:407] Progress: packet 80 received
+[I][processDataPacket:407] Progress: packet 90 received
+[I][processDataPacket:407] Progress: packet 100 received
+[I][processDataPacket:407] Progress: packet 110 received
+[I][processDataPacket:407] Progress: packet 120 received
+[I][processDataPacket:407] Progress: packet 130 received
+[I][processDataPacket:407] Progress: packet 140 received
+[I][processDataPacket:407] Progress: packet 150 received
+[I][processDataPacket:407] Progress: packet 160 received
+[I][processDataPacket:407] Progress: packet 170 received
+[I][processDataPacket:407] Progress: packet 180 received
+[I][processDataPacket:407] Progress: packet 190 received
+[I][processDataPacket:407] Progress: packet 200 received
+[I][processDataPacket:407] Progress: packet 210 received
+[I][processDataPacket:407] Progress: packet 220 received
+[I][processDataPacket:407] Progress: packet 230 received
+[I][processDataPacket:407] Progress: packet 240 received
+[I][processDataPacket:407] Progress: packet 250 received
+[I][processDataPacket:407] Progress: packet 260 received
+[I][processDataPacket:407] Progress: packet 270 received
+[I][processDataPacket:407] Progress: packet 280 received
+[I][processDataPacket:407] Progress: packet 290 received
+[I][processDataPacket:407] Progress: packet 300 received
+[I][processDataPacket:407] Progress: packet 310 received
+[I][processDataPacket:407] Progress: packet 320 received
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][parsePacket:235] Checksum error: cmd=0x01, len=16
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[W][parsePacket:212] Invalid magic byte: 0xFF, discarding 16 bytes
+[E][processHeaderPacket:324] No SD Card
+[I][processHeaderPacket:359] Receiving file: /test_recovery.txt
+[I][parsePacket:272] User cancelled transfer
+[I][cleanup:479] Client connection preserved
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][parsePacket:222] Invalid packet length: 40960
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][processHeaderPacket:324] No SD Card
+[I][processHeaderPacket:359] Receiving file: /test.txt
+[I][parsePacket:272] User cancelled transfer
+[I][cleanup:479] Client connection preserved
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][processHeaderPacket:324] No SD Card
+[I][processHeaderPacket:359] Receiving file: /cancel_test.txt
+[I][parsePacket:272] User cancelled transfer
+[I][cleanup:479] Client connection preserved
+[I][update_fan_auto_control:892] Fan OFF (cooldown complete)
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /test.txt
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /test_1kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /test_4kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /test_8kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /test_16kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /test_32kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /test_100kb.bin
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /test_10mb.bin
+[I][processDataPacket:407] Progress: packet 10 received
+[I][processDataPacket:407] Progress: packet 20 received
+[I][processDataPacket:407] Progress: packet 30 received
+[I][processDataPacket:407] Progress: packet 40 received
+[I][processDataPacket:407] Progress: packet 50 received
+[I][processDataPacket:407] Progress: packet 60 received
+[I][processDataPacket:407] Progress: packet 70 received
+[I][processDataPacket:407] Progress: packet 80 received
+[I][processDataPacket:407] Progress: packet 90 received
+[I][processDataPacket:407] Progress: packet 100 received
+[I][processDataPacket:407] Progress: packet 110 received
+[I][processDataPacket:407] Progress: packet 120 received
+[I][processDataPacket:407] Progress: packet 130 received
+[I][processDataPacket:407] Progress: packet 140 received
+[I][processDataPacket:407] Progress: packet 150 received
+[I][processDataPacket:407] Progress: packet 160 received
+[I][processDataPacket:407] Progress: packet 170 received
+[I][processDataPacket:407] Progress: packet 180 received
+[I][processDataPacket:407] Progress: packet 190 received
+[I][processDataPacket:407] Progress: packet 200 received
+[I][processDataPacket:407] Progress: packet 210 received
+[I][processDataPacket:407] Progress: packet 220 received
+[I][processDataPacket:407] Progress: packet 230 received
+[I][processDataPacket:407] Progress: packet 240 received
+[I][processDataPacket:407] Progress: packet 250 received
+[I][processDataPacket:407] Progress: packet 260 received
+[I][processDataPacket:407] Progress: packet 270 received
+[I][processDataPacket:407] Progress: packet 280 received
+[I][processDataPacket:407] Progress: packet 290 received
+[I][processDataPacket:407] Progress: packet 300 received
+[I][processDataPacket:407] Progress: packet 310 received
+[I][processDataPacket:407] Progress: packet 320 received
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][parsePacket:235] Checksum error: cmd=0x01, len=16
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[W][parsePacket:212] Invalid magic byte: 0xFF, discarding 16 bytes
+[I][processHeaderPacket:359] Receiving file: /test_recovery.txt
+[I][parsePacket:272] User cancelled transfer
+[I][cleanup:479] Client connection preserved
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[E][parsePacket:222] Invalid packet length: 40960
+[I][cleanup:481] Client already disconnected
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /test.txt
+[I][parsePacket:272] User cancelled transfer
+[I][cleanup:479] Client connection preserved
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /cancel_test.txt
+[I][parsePacket:272] User cancelled transfer
+[I][cleanup:479] Client connection preserved
+[I][update_led_auto_control:832] State: Idle -> Homing
+[I][update_led_auto_control:832] State: Homing -> Idle
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /Untitled_20262310220.nc
+[I][cleanup:481] Client already disconnected
+[I][update_led_auto_control:832] State: Idle -> Homing
+[I][update_led_auto_control:832] State: Homing -> Idle
+[I][update_led_auto_control:832] State: Idle -> Cycle
+[I][update_fan_auto_control:890] Fan ON
+[MSG:Reset during SD file at line: 93]
+ALARM:3
+[I][update_led_auto_control:832] State: Cycle -> Alarm
+
+Grbl 1.3a ['$' for help]
+[MSG:'$H'|'$X' to unlock]
+[I][safety_monitor_task:1024] Auto-homing triggered (state=Alarm)
+[I][update_led_auto_control:832] State: Alarm -> Homing
+[I][update_led_auto_control:832] State: Homing -> Idle
+[I][cleanup:481] Client already disconnected
+[I][handle:152] Client connected
+[I][processHeaderPacket:359] Receiving file: /Untitled_2026231048.nc
+[I][processDataPacket:407] Progress: packet 10 received
+[I][processDataPacket:407] Progress: packet 20 received
+[I][processDataPacket:407] Progress: packet 30 received
+[I][cleanup:481] Client already disconnected
+[I][update_led_auto_control:832] State: Idle -> Homing
+[I][update_led_auto_control:832] State: Homing -> Idle
+error:25 in SD file at line 7
+error:25 in SD file at line 7
+Guru Meditation Error: Core  1 panic'ed (LoadProhibited). Exception was unhandled.
+Core 1 register dump:
+PC      : 0x400013f9  PS      : 0x00060430  A0      : 0x800dad6e  A1      : 0x3ffb38c0
+A2      : 0x3ffb390c  A3      : 0x00000000  A4      : 0x000000ff  A5      : 0x0000ff00
+A6      : 0x00ff0000  A7      : 0xff000000  A8      : 0x00000000  A9      : 0x3ffb3890
+A10     : 0x3ffb390c  A11     : 0x3ffb3830  A12     : 0x00000001  A13     : 0x00000000
+A14     : 0x00000001  A15     : 0x3ffb3754  SAR     : 0x00000018  EXCCAUSE: 0x0000001c
+EXCVADDR: 0x00000000  LBEG    : 0x400013f9  LEND    : 0x4000140d  LCOUNT  : 0xffffffff
+
+Backtrace: 0x400013f9:0x3ffb38c0 0x400dad6b:0x3ffb38d0 0x400da992:0x3ffb38f0 0x400e9ba1:0x3ffb3a70 0x400e91cd:0x3ffb3ba0 0x400d87b9:0x3ffb3bd0 0x400d893f:0x3ffb3c20 0x400e3b2b:0x3ffb3c50 0x400e3eb5:0x3ffb3e10 0x401a0655:0x3ffb3e30 0x400f2a52:0x3ffb3e50 0x400f2af9:0x3ffb3e70 0x400f2b66:0x3ffb3ea0 0x400f2ccf:0x3ffb3ef0 0x400e37a1:0x3ffb3f40 0x400eca18:0x3ffb3f80 0x400ec894:0x3ffb3fa0 0x400db41b:0x3ffb3fc0 0x4008ba51:0x3ffb3fe0
+
+Rebooting...
+ets Jul 29 2019 12:21:46
+
+rst:0xc (SW_CPU_RESET),boot:0x17 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:1
+load:0x3fff0018,len:4
+load:0x3fff001c,len:1216
+ho 0 tail 12 room 4
+load:0x40078000,len:9720
+ho 0 tail 12 room 4
+load:0x40080400,len:6352
+entry 0x400806b8
+
+[MSG:Grbl_ESP32 Ver 1.3a Date 20211103]
+[MSG:Compiled with ESP32 SDK:v3.2.3-14-gd3e562907]
+[MSG:Using machine:Genmitsu_Kiosk_V07_HIM]
+[MSG:Axis count 3]
+[MSG:RMT Steps]
+[MSG:Init Motors]
+[MSG:X  Axis Standard Stepper Step:GPIO(33) Dir:GPIO(32) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Y  Axis Standard Stepper Step:GPIO(26) Dir:GPIO(25) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Z  Axis Standard Stepper Step:GPIO(5) Dir:GPIO(18) Disable:GPIO(27) Limits(0.000,1000.000)]
+[I][machine_init:1042] Wainlux K11 HIM Custom Init (Full Rewrite)
+[I][machine_init:1043] Compiled: Feb  3 2026 at 09:48:37
+[I][machine_init:1044] ESP32 SDK: v3.2.3-14-gd3e562907
+[I][machine_init:1049] Button pin: 19 | Door pin: 17
+[MSG:User Analog Output:0 on Pin:GPIO(23) Freq:25000Hz]
+[MSG:User Analog Output:1 on Pin:GPIO(16) Freq:25000Hz]
+[I][init_tilt_sensor:312] I2C mutex created
+[I][init_tilt_sensor:323] I2C bus initialized: 100kHz (SDA=22, SCL=4)
+[I][init_tilt_sensor:345] QMI8658 initialized (SDA=22, SCL=4)
+[I][check_tilt_sensor:438] 1.4° (Norm: X=21 Y=-12 Z=-1000 mg, Samples=16/16)
+[I][machine_init:1066] Custom tasks created: Button, Safety, LED+Fan
+[I][safety_monitor_task:928] DEFAULT_SAFETY_DOOR_ENABLED: 1
+[I][safety_monitor_task:929] DEFAULT_TILT_SENSOR_ENABLED: 1
+[MSG:Laser spindle on Pin:GPIO(21), Enbl:None, Freq:5000Hz, Res:13bits Laser mode:On]
+[I][update_led_auto_control:832] State: Idle -> Alarm
+[MSG:Fixed MAC: 88:57:21:C4:E1:84]
+[MSG:Connecting MT3000 (attempt 1)]
+[MSG:Start DHCP with hostname: grblesp]
+[MSG:Start DHCP with hostname: grblesp]
+[MSG:Connecting.]
+[MSG:Connecting..]
+[MSG:Connecting...]
+[MSG:Connecting....]
+[MSG:Connecting.]
+[MSG:Connected with 192.168.8.177]
+[MSG:Start mDNS with hostname:http://grblesp.local/]
+[MSG:SSDP Started]
+[MSG:HTTP Started]
+[MSG:TELNET Started 8080]
+[I][begin:117] Server started on port 8081 (static buffer: 34816 bytes)
+[MSG:X  Axis limit switch on pin GPIO(36)]
+[MSG:Y  Axis limit switch on pin GPIO(35)]
+
+Grbl 1.3a ['$' for help]
+[MSG:'$H'|'$X' to unlock]
+[I][safety_monitor_task:1024] Auto-homing triggered (state=Alarm)
+[I][update_led_auto_control:832] State: Alarm -> Homing
+[I][update_led_auto_control:832] State: Homing -> Idle

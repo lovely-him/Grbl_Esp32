@@ -101,7 +101,7 @@
 #define AP_SSID           "Genmitsu_Kiosk"
 #define AP_PASSWORD       "12345678"
 
-#define MEN_KAI_GUAN_SET                    // 门开关设置选项有效，不需要可以注释掉，
+#define MEN_KAI_GUAN_SET                    // 门开关设置选项有效, 不需要可以注释掉, 
 #define DEFAULT_MEN_KAI_GUAN    1           // 门开关默认是否有效 ==0无效 ==1有效
 #define DEFAULT_QING_JIAO       1
 #define scl_pin GPIO_NUM_4                  // 倾角传感器IO口

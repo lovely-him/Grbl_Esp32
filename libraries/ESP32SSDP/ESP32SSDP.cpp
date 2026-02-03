@@ -245,10 +245,19 @@ void SSDPClass::schema(WiFiClient client){
 void SSDPClass::_update(){
   int nbBytes  =0;
   char * packetBuffer = nullptr;
-  
+
   if(!_pending && _server) {
     ssdp_method_t method = NONE;
-    nbBytes= _server->parsePacket();
+
+    // 添加异常捕获 - 防止 WiFiUDP::parsePacket() 内存分配失败导致崩溃
+    // 参考: https://github.com/luc-github/ESP32SSDP/issues/26
+    try {
+      nbBytes= _server->parsePacket();
+    } catch (const std::bad_alloc& e) {
+      log_n("Memory allocation failed in parsePacket(): %s", e.what());
+      return;  // 安全返回, 不崩溃
+    }
+
     typedef enum {METHOD, URI, PROTO, KEY, VALUE, ABORT} states;
     states state = METHOD;
     typedef enum {START, MAN, ST, MX} headers;
@@ -258,7 +267,15 @@ void SSDPClass::_update(){
     uint8_t cr = 0;
 
     char buffer[SSDP_BUFFER_SIZE] = {0};
-    packetBuffer = new char[nbBytes +1];
+
+    // 添加第二个异常捕获 - 防止数据包缓冲区分配失败
+    try {
+      packetBuffer = new char[nbBytes +1];
+    } catch (const std::bad_alloc& e) {
+      log_n("Memory allocation failed for packet buffer (%d bytes): %s", nbBytes+1, e.what());
+      return;  // 安全返回
+    }
+
     int message_size=_server->read(packetBuffer,nbBytes);
     int process_pos = 0;
     packetBuffer[message_size]='\0';
@@ -275,7 +292,7 @@ void SSDPClass::_update(){
     while(process_pos < message_size){
 
       char c = packetBuffer[process_pos];
-     process_pos++;
+      process_pos++;
       (c == '\r' || c == '\n') ? cr++ : cr = 0;
 #ifdef DEBUG_SSDP
         if ((c == '\r' || c == '\n') && (cr < 2)) DEBUG_SSDP.println(buffer);
@@ -433,6 +450,12 @@ void SSDPClass::setTTL(const uint8_t ttl){
 }
 
 void SSDPClass::_onTimerStatic(SSDPClass* self) {
+  // 防御性检查: 验证指针有效性, 防止定时器回调在对象销毁后执行
+  // 参考: https://esp32.com/viewtopic.php?t=16332
+  if (!self || !self->_timer || !self->_server) {
+    return;  // 对象正在销毁或已销毁, 安全退出
+  }
+
 #ifdef DEBUG_SSDP
                 DEBUG_SSDP.println("Update");
 #endif
@@ -454,7 +477,15 @@ void SSDPClass::_stopTimer() {
     return;
     }
   ETSTimer* tm = &(_timer->timer);
+
+  // 步骤 1: 停止定时器的未来触发
   ets_timer_disarm(tm);
+
+  // 步骤 2: 等待所有回调完成 (关键! 防止竞态条件)
+  // 参考: https://esp32.com/viewtopic.php?t=16332 (Espressif 官方建议)
+  ets_timer_done(tm);
+
+  // 步骤 3: 现在可以安全删除
   delete _timer;
   _timer = nullptr;
 }

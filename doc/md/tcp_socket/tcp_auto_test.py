@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-TCP Socket 文件传输 - 自动化测试脚本（简化版）
+TCP Socket 文件传输 - 自动化测试脚本 (简化版) 
 """
 
 import json
@@ -55,7 +55,7 @@ def test_1kb_file(client: FileTransferClient) -> bool:
 
     if success:
         speed = len(test_data) / duration / 1024  # KB/s
-        print(f"[PASS] 1KB 文件传输成功，耗时 {duration:.2f}秒，速度 {speed:.2f} KB/s")
+        print(f"[PASS] 1KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
     else:
         print("[FAIL] 1KB 文件传输失败")
 
@@ -76,7 +76,7 @@ def test_4kb_file(client: FileTransferClient) -> bool:
 
     if success:
         speed = len(test_data) / duration / 1024
-        print(f"[PASS] 4KB 文件传输成功，耗时 {duration:.2f}秒，速度 {speed:.2f} KB/s")
+        print(f"[PASS] 4KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
     else:
         print("[FAIL] 4KB 文件传输失败")
 
@@ -97,7 +97,7 @@ def test_8kb_file(client: FileTransferClient) -> bool:
 
     if success:
         speed = len(test_data) / duration / 1024
-        print(f"[PASS] 8KB 文件传输成功，耗时 {duration:.2f}秒，速度 {speed:.2f} KB/s")
+        print(f"[PASS] 8KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
     else:
         print("[FAIL] 8KB 文件传输失败")
 
@@ -118,7 +118,7 @@ def test_16kb_file(client: FileTransferClient) -> bool:
 
     if success:
         speed = len(test_data) / duration / 1024
-        print(f"[PASS] 16KB 文件传输成功，耗时 {duration:.2f}秒，速度 {speed:.2f} KB/s")
+        print(f"[PASS] 16KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
     else:
         print("[FAIL] 16KB 文件传输失败")
 
@@ -126,9 +126,9 @@ def test_16kb_file(client: FileTransferClient) -> bool:
 
 
 def test_32kb_file(client: FileTransferClient) -> bool:
-    """测试 6: 32KB 文件传输（单包最大）"""
+    """测试 6: 32KB 文件传输 (单包最大) """
     print("\n" + "=" * 70)
-    print("测试 6: 32KB 文件传输（单包最大）")
+    print("测试 6: 32KB 文件传输 (单包最大) ")
     print("=" * 70)
 
     test_data = b"F" * (32 * 1024)
@@ -139,7 +139,7 @@ def test_32kb_file(client: FileTransferClient) -> bool:
 
     if success:
         speed = len(test_data) / duration / 1024
-        print(f"[PASS] 32KB 文件传输成功，耗时 {duration:.2f}秒，速度 {speed:.2f} KB/s")
+        print(f"[PASS] 32KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
     else:
         print("[FAIL] 32KB 文件传输失败")
 
@@ -147,9 +147,9 @@ def test_32kb_file(client: FileTransferClient) -> bool:
 
 
 def test_100kb_file(client: FileTransferClient) -> bool:
-    """测试 7: 100KB 文件传输（多包）"""
+    """测试 7: 100KB 文件传输 (多包) """
     print("\n" + "=" * 70)
-    print("测试 7: 100KB 文件传输（多包）")
+    print("测试 7: 100KB 文件传输 (多包) ")
     print("=" * 70)
 
     # 生成 100KB 测试数据
@@ -161,7 +161,7 @@ def test_100kb_file(client: FileTransferClient) -> bool:
 
     if success:
         speed = len(test_data) / duration / 1024  # KB/s
-        print(f"[PASS] 100KB 文件传输成功，耗时 {duration:.2f}秒，速度 {speed:.2f} KB/s")
+        print(f"[PASS] 100KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
     else:
         print("[FAIL] 100KB 文件传输失败")
 
@@ -169,9 +169,9 @@ def test_100kb_file(client: FileTransferClient) -> bool:
 
 
 def test_10mb_file(client: FileTransferClient) -> bool:
-    """测试 8: 10MB 文件传输（大文件压力测试）"""
+    """测试 8: 10MB 文件传输 (大文件压力测试) """
     print("\n" + "=" * 70)
-    print("测试 8: 10MB 文件传输（大文件压力测试）")
+    print("测试 8: 10MB 文件传输 (大文件压力测试) ")
     print("=" * 70)
 
     # 生成 10MB 测试数据
@@ -183,7 +183,7 @@ def test_10mb_file(client: FileTransferClient) -> bool:
 
     if success:
         speed = len(test_data) / duration / 1024  # KB/s
-        print(f"[PASS] 10MB 文件传输成功，耗时 {duration:.2f}秒，速度 {speed:.2f} KB/s")
+        print(f"[PASS] 10MB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
     else:
         print("[FAIL] 10MB 文件传输失败")
 
@@ -196,7 +196,7 @@ def test_checksum_error(client: FileTransferClient) -> bool:
     print("测试 9: 校验和错误处理")
     print("=" * 70)
 
-    # 构建错误的数据包（故意错误的校验和）
+    # 构建错误的数据包 (故意错误的校验和) 
     packet = bytearray([0xAB, 0x01, 0x00, 0x10, 0x00, 0x00])  # 长度 = 16 字节
     packet.extend(b"test.txt")
     packet.extend([0xFF, 0xFF])  # 错误的校验和
@@ -205,8 +205,8 @@ def test_checksum_error(client: FileTransferClient) -> bool:
         client.socket.sendall(bytes(packet))
         response = client.socket.recv(1024)
 
-        # 检查是否返回校验和错误（状态码 0x02）
-        # 响应格式：[0xAB][STATUS][LEN_H][LEN_L][IDX_H][IDX_L][CHK_H][CHK_L]
+        # 检查是否返回校验和错误 (状态码 0x02) 
+        # 响应格式: [0xAB][STATUS][LEN_H][LEN_L][IDX_H][IDX_L][CHK_H][CHK_L]
         # 状态码在索引 1
         if len(response) >= 2 and response[1] == 0x02:
             print("[PASS] 服务器正确返回校验和错误")
@@ -228,14 +228,14 @@ def test_invalid_magic_byte(client: FileTransferClient) -> bool:
     # 构建错误的魔术字节数据包
     packet = bytearray([0xFF, 0x01, 0x00, 0x10, 0x00, 0x00])  # 错误的魔术字节 0xFF
     packet.extend(b"test.txt")
-    # 计算正确的校验和（虽然魔术字节错误）
+    # 计算正确的校验和 (虽然魔术字节错误) 
     checksum = sum(packet) & 0xFFFF
     packet.extend([(checksum >> 8) & 0xFF, checksum & 0xFF])
 
     try:
         client.socket.sendall(bytes(packet))
 
-        # 服务器应该丢弃这个包，不发送响应
+        # 服务器应该丢弃这个包, 不发送响应
         # 等待一小段时间看是否有响应
         client.socket.settimeout(1.0)
         try:
@@ -247,11 +247,11 @@ def test_invalid_magic_byte(client: FileTransferClient) -> bool:
             # 超时是预期行为
             pass
 
-        # 发送正确的包，验证连接仍然有效
+        # 发送正确的包, 验证连接仍然有效
         client.socket.settimeout(5.0)
         response = client.send_header_packet('test_recovery.txt')
         if response['success']:
-            print("[PASS] 服务器正确丢弃无效魔术字节，连接保持正常")
+            print("[PASS] 服务器正确丢弃无效魔术字节, 连接保持正常")
             # 发送取消包清理状态
             client.send_cancel_packet()
             return True
@@ -267,23 +267,23 @@ def test_invalid_magic_byte(client: FileTransferClient) -> bool:
 def test_oversized_packet(client: FileTransferClient) -> bool:
     """测试 11: 超大包处理"""
     print("\n" + "=" * 70)
-    print("测试 11: 超大包处理（声称长度超过缓冲区）")
+    print("测试 11: 超大包处理 (声称长度超过缓冲区) ")
     print("=" * 70)
 
-    # 构建声称长度为 40KB 的包头（实际只发送头部）
+    # 构建声称长度为 40KB 的包头 (实际只发送头部) 
     packet = bytearray([0xAB, 0x01])
-    oversized_len = 40 * 1024  # 40KB，超过 RXBUFFERSIZE (33KB)
+    oversized_len = 40 * 1024  # 40KB, 超过 RXBUFFERSIZE (33KB)
     packet.extend([(oversized_len >> 8) & 0xFF, oversized_len & 0xFF])
     packet.extend([0x00, 0x00])  # 包序号
     packet.extend(b"test.txt")
-    # 计算校验和（基于实际发送的数据）
+    # 计算校验和 (基于实际发送的数据) 
     checksum = sum(packet) & 0xFFFF
     packet.extend([(checksum >> 8) & 0xFF, checksum & 0xFF])
 
     try:
         client.socket.sendall(bytes(packet))
 
-        # 服务器应该返回协议错误（状态码 0x02）
+        # 服务器应该返回协议错误 (状态码 0x02) 
         client.socket.settimeout(2.0)
         response = client.socket.recv(1024)
 
@@ -302,22 +302,22 @@ def test_oversized_packet(client: FileTransferClient) -> bool:
 def test_incomplete_packet(client: FileTransferClient) -> bool:
     """测试 12: 不完整包处理"""
     print("\n" + "=" * 70)
-    print("测试 12: 不完整包处理（发送部分数据后等待）")
+    print("测试 12: 不完整包处理 (发送部分数据后等待) ")
     print("=" * 70)
 
-    # 构建完整的包，但只发送前半部分
+    # 构建完整的包, 但只发送前半部分
     full_packet = bytearray([0xAB, 0x01, 0x00, 0x10, 0x00, 0x00])
     full_packet.extend(b"test.txt")
     checksum = sum(full_packet) & 0xFFFF
     full_packet.extend([(checksum >> 8) & 0xFF, checksum & 0xFF])
 
-    # 只发送前 8 字节（不完整）
+    # 只发送前 8 字节 (不完整) 
     partial_packet = bytes(full_packet[:8])
 
     try:
         client.socket.sendall(partial_packet)
 
-        # 服务器应该等待更多数据，不发送响应
+        # 服务器应该等待更多数据, 不发送响应
         client.socket.settimeout(1.0)
         try:
             response = client.socket.recv(1024)
@@ -436,9 +436,9 @@ def main():
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='TCP Socket 文件传输自动化测试')
     parser.add_argument('-l', '--loop', type=str, help='循环测试指定项目 (small/1kb/4kb/8kb/16kb/32kb/100kb/10mb/checksum/invalid-magic/oversized/incomplete/cancel)')
-    parser.add_argument('-i', '--interval', type=int, default=100, help='循环间隔（毫秒），默认100ms')
-    parser.add_argument('-c', '--count', type=int, help='循环次数，默认无限循环')
-    parser.add_argument('--continue-on-failure', action='store_true', help='失败后继续执行（默认失败即停止）')
+    parser.add_argument('-i', '--interval', type=int, default=100, help='循环间隔 (毫秒) , 默认100ms')
+    parser.add_argument('-c', '--count', type=int, help='循环次数, 默认无限循环')
+    parser.add_argument('--continue-on-failure', action='store_true', help='失败后继续执行 (默认失败即停止) ')
     args = parser.parse_args()
 
     # 测试映射表
@@ -448,9 +448,9 @@ def main():
         '4kb': ("4KB 文件传输", test_4kb_file),
         '8kb': ("8KB 文件传输", test_8kb_file),
         '16kb': ("16KB 文件传输", test_16kb_file),
-        '32kb': ("32KB 文件传输（单包最大）", test_32kb_file),
-        '100kb': ("100KB 文件传输（多包）", test_100kb_file),
-        '10mb': ("10MB 文件传输（大文件压力）", test_10mb_file),
+        '32kb': ("32KB 文件传输 (单包最大) ", test_32kb_file),
+        '100kb': ("100KB 文件传输 (多包) ", test_100kb_file),
+        '10mb': ("10MB 文件传输 (大文件压力) ", test_10mb_file),
         'checksum': ("校验和错误处理", test_checksum_error),
         'invalid-magic': ("无效魔术字节处理", test_invalid_magic_byte),
         'oversized': ("超大包处理", test_oversized_packet),
@@ -469,7 +469,7 @@ def main():
 
     print(f"\n服务器地址: {server_ip}:{server_port}")
 
-    # 创建客户端（启用调试模式）
+    # 创建客户端 (启用调试模式) 
     client = FileTransferClient(server_ip, server_port, debug=True)
 
     # 循环测试模式
@@ -488,7 +488,7 @@ def main():
 
     # 连接服务器
     if not client.connect():
-        print("\n[ERROR] 无法连接到服务器，测试终止")
+        print("\n[ERROR] 无法连接到服务器, 测试终止")
         return
 
     # 测试结果统计
@@ -502,9 +502,9 @@ def main():
             ("4KB 文件传输", test_4kb_file),
             ("8KB 文件传输", test_8kb_file),
             ("16KB 文件传输", test_16kb_file),
-            ("32KB 文件传输（单包最大）", test_32kb_file),
-            ("100KB 文件传输（多包）", test_100kb_file),
-            ("10MB 文件传输（大文件压力）", test_10mb_file),
+            ("32KB 文件传输 (单包最大) ", test_32kb_file),
+            ("100KB 文件传输 (多包) ", test_100kb_file),
+            ("10MB 文件传输 (大文件压力) ", test_10mb_file),
             ("校验和错误处理", test_checksum_error),
             ("无效魔术字节处理", test_invalid_magic_byte),
             ("超大包处理", test_oversized_packet),
@@ -519,7 +519,7 @@ def main():
                 time.sleep(0.5)  # 等待服务器清理状态
 
                 if not client.connect():
-                    print(f"[ERROR] 无法连接到服务器，跳过测试: {test_name}")
+                    print(f"[ERROR] 无法连接到服务器, 跳过测试: {test_name}")
                     results.append((test_name, False))
                     if not args.continue_on_failure:
                         break
@@ -528,9 +528,9 @@ def main():
                 result = test_func(client)
                 results.append((test_name, result))
 
-                # 默认失败即停止，除非指定 --continue-on-failure
+                # 默认失败即停止, 除非指定 --continue-on-failure
                 if not result and not args.continue_on_failure:
-                    print(f"\n[STOP] 测试失败，停止后续测试")
+                    print(f"\n[STOP] 测试失败, 停止后续测试")
                     break
 
                 # 测试间隔
@@ -561,7 +561,7 @@ def main():
     print(f"\n总计: {passed}/{total} 通过")
 
     if passed == total:
-        print("\n[SUCCESS] 所有测试通过！")
+        print("\n[SUCCESS] 所有测试通过! ")
     else:
         print(f"\n[FAILED] {total - passed} 个测试失败")
 

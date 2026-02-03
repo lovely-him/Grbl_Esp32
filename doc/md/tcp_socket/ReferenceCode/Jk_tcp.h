@@ -106,7 +106,7 @@ class Jk_Server {
                 chang=chang|shu;
                 if(chang>1024*32+10)
                 {
-                    jie_shou_ji_shu=0;//出错，重新接收
+                    jie_shou_ji_shu=0;//出错, 重新接收
                     file.close();
                     set_sd_state(SDState::Idle);
                     kai_shi=false;
@@ -136,7 +136,7 @@ class Jk_Server {
                 switch(buffer[1])
                 {
                     case 1:
-                        for (int i = 4; i < 4 + chang-6; i++) {//取出文件名，从第4个字符开始的字符到20个字符是文件名
+                        for (int i = 4; i < 4 + chang-6; i++) {//取出文件名, 从第4个字符开始的字符到20个字符是文件名
                             wen_jian_ming += String((char)buffer[i]);
                         }
                         state = get_sd_state(true);

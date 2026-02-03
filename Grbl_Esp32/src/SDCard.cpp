@@ -166,7 +166,12 @@ SDState set_sd_state(SDState state) {
 
 void sd_get_current_filename(char* name) {
     if (myFile) {
-        strcpy(name, myFile.name());
+        const char* filename = myFile.name();
+        if (filename != nullptr) {
+            strcpy(name, filename);
+        } else {
+            name[0] = 0;
+        }
     } else {
         name[0] = 0;
     }

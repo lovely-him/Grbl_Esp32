@@ -34,7 +34,7 @@ class FileTransferClient:
         Args:
             host: 服务器 IP 地址
             port: 服务器端口
-            timeout: 超时时间（秒）
+            timeout: 超时时间 (秒) 
             debug: 是否启用调试日志
         """
         self.host = host
@@ -99,7 +99,7 @@ class FileTransferClient:
 
             # 2. 分包发送数据
             total_packets = (len(data) + self.MAX_PACKET_SIZE - 1) // self.MAX_PACKET_SIZE
-            print(f"[INFO] 开始传输 {len(data)} 字节，共 {total_packets} 个数据包")
+            print(f"[INFO] 开始传输 {len(data)} 字节, 共 {total_packets} 个数据包")
 
             for packet_index in range(1, total_packets + 1):
                 start = (packet_index - 1) * self.MAX_PACKET_SIZE
@@ -229,15 +229,15 @@ class FileTransferClient:
         return bytes(packet)
 
     def _calculate_checksum(self, data: bytes) -> int:
-        """计算校验和（累加和的低 16 位）
+        """计算校验和 (累加和的低 16 位) 
 
         Args:
-            data: 数据包（包含校验和占位符）
+            data: 数据包 (包含校验和占位符) 
 
         Returns:
-            校验和（16位）
+            校验和 (16位) 
         """
-        # 累加除了最后 2 字节（校验和）之外的所有字节
+        # 累加除了最后 2 字节 (校验和) 之外的所有字节
         checksum = sum(data[:-2]) & 0xFFFF
         return checksum
 
@@ -254,12 +254,12 @@ class FileTransferClient:
             # 发送数据包
             self.socket.sendall(packet)
 
-            # 接收响应（最少 7 字节）
+            # 接收响应 (最少 7 字节) 
             response = self.socket.recv(1024)
             if len(response) < 7:
                 return {'success': False, 'error': 'Invalid response length'}
 
-            # 调试日志：显示响应
+            # 调试日志: 显示响应
             if self.debug:
                 print(f"[DEBUG] <<< 收到应答: {self._format_response(response)}")
 
@@ -274,11 +274,11 @@ class FileTransferClient:
     def _parse_response(self, data: bytes) -> Dict:
         """解析服务器响应
 
-        响应格式（适配 Dart 客户端）:
+        响应格式 (适配 Dart 客户端) :
         [0xAB][STATUS][LEN_H][LEN_L][IDX_H][IDX_L][CHK_H][CHK_L]
         - 固定 8 字节
         - STATUS: 0x01=成功, 0x02=校验错误, 0x03=超时/错误
-        - IDX: 下一个包序号（所有响应都包含）
+        - IDX: 下一个包序号 (所有响应都包含) 
 
         Args:
             data: 响应数据
@@ -293,10 +293,10 @@ class FileTransferClient:
         if data[0] != self.MAGIC_BYTE:
             return {'success': False, 'error': 'Invalid magic byte'}
 
-        # 提取状态码（位置 1）
+        # 提取状态码 (位置 1) 
         status_code = data[1]
 
-        # 提取下一个包序号（位置 4-5，大端序）
+        # 提取下一个包序号 (位置 4-5, 大端序) 
         next_index = (data[4] << 8) | data[5]
 
         if status_code == self.STATUS_SUCCESS:
@@ -332,7 +332,7 @@ class FileTransferClient:
 
         Args:
             packet: 数据包
-            show_data: 是否显示数据部分（文件名包和取消包显示，数据包不显示）
+            show_data: 是否显示数据部分 (文件名包和取消包显示, 数据包不显示) 
 
         Returns:
             格式化的字符串
@@ -354,26 +354,26 @@ class FileTransferClient:
 
         # 显示十六进制数据
         if cmd == 0x02 and len(packet) > 100:
-            # 数据包：只显示头部和尾部
+            # 数据包: 只显示头部和尾部
             hex_header = ' '.join(f'{b:02X}' for b in packet[:6])
             hex_footer = ' '.join(f'{b:02X}' for b in packet[-2:])
             data_len = len(packet) - 8
             result += f"    HEX头: {hex_header} [... {data_len}字节数据 ...]\n"
             result += f"    HEX尾: {hex_footer}\n"
         else:
-            # 短包：显示完整数据
+            # 短包: 显示完整数据
             hex_str = ' '.join(f'{b:02X}' for b in packet)
             result += f"    HEX: {hex_str}\n"
 
         # 显示解析内容
         result += f"    解析: [魔术:0x{magic:02X}] [命令:{cmd_str}] [长度:{length}] [序号:{index}]"
 
-        # 如果是文件名包，显示文件名
+        # 如果是文件名包, 显示文件名
         if cmd == 0x01 and show_data and len(packet) > 8:
             filename = packet[6:-2].decode('utf-8', errors='ignore')
             result += f" [文件名:{filename}]"
 
-        # 如果是数据包，显示数据长度
+        # 如果是数据包, 显示数据长度
         if cmd == 0x02:
             data_len = len(packet) - 8
             result += f" [数据:{data_len}字节]"

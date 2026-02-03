@@ -34,42 +34,34 @@
 #endif
 
 // ============================================================================
-// 日志宏定义 (编译时优化)
+// 日志宏定义
 // ============================================================================
 
 // 日志等级控制 (0=关闭, 1=Error, 2=Warning, 3=Info, 4=Debug)
 #define FTS_LOG_LEVEL 3
+#define FTS_LOG_FORMAT(letter, format)  "[" #letter "][%s:%u] " format "\r\n", __FUNCTION__, __LINE__
 
-// 日志标签
-#define TAG_FTS "[FTS ]"
-
-// 回车换行
-#define CR_LF "\r\n"
-
-// 获取毫秒时间戳
-#define LOG_TIMESTAMP() (millis())
-
-// 日志宏定义
+// 日志宏定义 (使用 ESP32 标准日志系统)
 #if FTS_LOG_LEVEL >= 1
-#    define FTS_ERROR(fmt, ...) grbl_sendf(CLIENT_SERIAL, "[E][%6lu]%s " fmt CR_LF, LOG_TIMESTAMP(), TAG_FTS, ##__VA_ARGS__)
+#    define FTS_ERROR(fmt, ...) grbl_sendf(CLIENT_SERIAL, FTS_LOG_FORMAT(E, fmt), ##__VA_ARGS__)
 #else
 #    define FTS_ERROR(fmt, ...)
 #endif
 
 #if FTS_LOG_LEVEL >= 2
-#    define FTS_WARN(fmt, ...) grbl_sendf(CLIENT_SERIAL, "[W][%6lu]%s " fmt CR_LF, LOG_TIMESTAMP(), TAG_FTS, ##__VA_ARGS__)
+#    define FTS_WARN(fmt, ...) grbl_sendf(CLIENT_SERIAL, FTS_LOG_FORMAT(W, fmt), ##__VA_ARGS__)
 #else
 #    define FTS_WARN(fmt, ...)
 #endif
 
 #if FTS_LOG_LEVEL >= 3
-#    define FTS_INFO(fmt, ...) grbl_sendf(CLIENT_SERIAL, "[I][%6lu]%s " fmt CR_LF, LOG_TIMESTAMP(), TAG_FTS, ##__VA_ARGS__)
+#    define FTS_INFO(fmt, ...) grbl_sendf(CLIENT_SERIAL, FTS_LOG_FORMAT(I, fmt), ##__VA_ARGS__)
 #else
 #    define FTS_INFO(fmt, ...)
 #endif
 
 #if FTS_LOG_LEVEL >= 4
-#    define FTS_DEBUG(fmt, ...) grbl_sendf(CLIENT_SERIAL, "[D][%6lu]%s " fmt CR_LF, LOG_TIMESTAMP(), TAG_FTS, ##__VA_ARGS__)
+#    define FTS_DEBUG(fmt, ...) grbl_sendf(CLIENT_SERIAL, FTS_LOG_FORMAT(D, fmt), ##__VA_ARGS__)
 #else
 #    define FTS_DEBUG(fmt, ...)
 #endif
@@ -86,28 +78,19 @@ namespace WebUI {
     uint16_t    FileTransferServer::_port           = 0;
     WiFiServer* FileTransferServer::_transferServer = NULL;
     WiFiClient  FileTransferServer::_transferClient;
+    uint8_t     FileTransferServer::_rxBuffer[FileTransferServer::RXBUFFERSIZE];
 
     FileTransferServer::FileTransferServer() {
-        _rxBuffer            = nullptr;  // 延迟分配，在 begin() 中分配
         _state               = TransferState::Idle;
         _rxBufferSize        = 0;
         _expectedPacketIndex = 0;
         _lastActivityTime    = 0;
         _skipSDWrite         = false;
+        _totalBytesWritten   = 0;
     }
 
     bool FileTransferServer::begin() {
         end();
-
-        // 分配接收缓冲区 (延迟分配，避免在静态初始化阶段分配)
-        if (!_rxBuffer) {
-            _rxBuffer = new uint8_t[RXBUFFERSIZE];
-            if (!_rxBuffer) {
-                FTS_ERROR("Failed to allocate RX buffer (%d bytes)", RXBUFFERSIZE);
-                return false;
-            }
-            FTS_INFO("RX buffer allocated: %d bytes", RXBUFFERSIZE);
-        }
 
         // 从设置中读取端口号
         _port = file_transfer_port->get();
@@ -118,6 +101,7 @@ namespace WebUI {
         _expectedPacketIndex = 0;
         _lastActivityTime    = 0;
         _skipSDWrite         = false;
+        _totalBytesWritten   = 0;
 
         // 创建服务器实例
         _transferServer = new WiFiServer(_port);
@@ -132,7 +116,7 @@ namespace WebUI {
         _transferServer->begin();
         _setupdone = true;
 
-        FTS_INFO("Server started on port %d", _port);
+        FTS_INFO("Server started on port %d (static buffer: %d bytes)", _port, RXBUFFERSIZE);
         return true;
     }
 
@@ -161,19 +145,14 @@ namespace WebUI {
         // 检查新客户端连接
         if (_transferServer->hasClient()) {
             WiFiClient newClient = _transferServer->available();
-
-            // 已有客户端连接, 断开旧客户端, 接受新客户端
-            if (_transferClient && _transferClient.connected()) {
-                FTS_WARN("New client connecting, disconnecting old client");
+            if (newClient) {
                 cleanup();
+                _transferClient = newClient;
+                _state = TransferState::ReceivingHeader;
+                _rxBufferSize = 0;
+                _lastActivityTime = millis();
+                FTS_INFO("Client connected");
             }
-
-            // 接受新客户端
-            _transferClient = newClient;
-            _state = TransferState::ReceivingHeader;
-            _rxBufferSize = 0;
-            _lastActivityTime = millis();
-            FTS_INFO("Client connected");
         }
 
         // 处理现有客户端
@@ -188,13 +167,6 @@ namespace WebUI {
     }
 
     void FileTransferServer::handleClient() {
-        // 安全检查: 确保缓冲区已分配
-        if (!_rxBuffer) {
-            FTS_ERROR("RX buffer not allocated");
-            cleanup();
-            return;
-        }
-
         // 检查超时
         if (_state != TransferState::Idle) {
             if (millis() - _lastActivityTime > TRANSFER_TIMEOUT_MS) {
@@ -251,7 +223,6 @@ namespace WebUI {
         if (packetLen < MIN_PACKET_SIZE || packetLen >= RXBUFFERSIZE) {
             FTS_ERROR("Invalid packet length: %d", packetLen);
             sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
-            cleanup();
             return false;
         }
 
@@ -265,13 +236,11 @@ namespace WebUI {
         if (!verifyChecksum(_rxBuffer, packetLen)) {
             FTS_ERROR("Checksum error: cmd=0x%02X, len=%d", _rxBuffer[1], packetLen);
             sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
-            cleanup();
             return false;
         }
 
         // 根据命令类型和当前状态处理
         uint8_t cmd = _rxBuffer[1];
-        bool shouldContinue = true;
         FTS_DEBUG("Packet: cmd=0x%02X, len=%d, bufSize=%zu", cmd, packetLen, _rxBufferSize);
 
         switch (cmd) {
@@ -281,42 +250,39 @@ namespace WebUI {
                     FTS_ERROR("Header packet in wrong state: %d", (int)_state);
                     sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
                 } else {
-                    shouldContinue = processHeaderPacket(_rxBuffer, packetLen);
+                    processHeaderPacket(_rxBuffer, packetLen);
                 }
             }
             break;
+
             case static_cast<uint8_t>(PacketType::Data): {  // Data Packet
                 // 只在 ReceivingData 状态接受
                 if (_state != TransferState::ReceivingData) {
                     FTS_ERROR("Data packet in wrong state: %d", (int)_state);
                     sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
                 } else {
-                    shouldContinue = processDataPacket(_rxBuffer, packetLen);
+                    processDataPacket(_rxBuffer, packetLen);
                 }
             }
             break;
+
             case static_cast<uint8_t>(PacketType::Cancel): {  // Cancel Packet
                 // 任何非 Idle 状态都可以取消, 不发送响应, 直接清理并断开连接
                 if (_state == TransferState::Idle) {
                     FTS_WARN("Cancel packet in Idle state, ignoring");
                 } else {
                     FTS_INFO("User cancelled transfer");
-                    shouldContinue = false;
+                    cleanup();
                 }
             }
             break;
+
             default: {
                 // 未知命令 - 发送错误响应, 丢弃这个包, 继续等待
                 FTS_ERROR("Unknown command: 0x%02X", cmd);
                 sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
             }
             break;
-        }
-
-        // 如果处理失败, 统一调用 cleanup() 并退出
-        if (!shouldContinue) {
-            cleanup();
-            return false;
         }
 
         // 移除已处理的包 (只有在处理成功时才执行)
@@ -406,13 +372,16 @@ namespace WebUI {
             // 序号不匹配, 请求正确的包, 丢弃当前包
             FTS_WARN("Packet index mismatch: expected %d, got %d", _expectedPacketIndex, packetIndex);
             sendResponse(ResponseStatus::Success, _expectedPacketIndex);
-            return true;
+            return false;
         }
 
         // 提取数据内容
         // 包格式: [0xAB][0x02][LEN_H][LEN_L][IDX_H][IDX_L][data][CHK_H][CHK_L]
         size_t         dataLen = len - 8;  // 排除头部(6) + 校验和(2)
         const uint8_t* payload = data + 6;
+
+        // 累加理论写入字节数 (无论是否跳过写入) 
+        _totalBytesWritten += dataLen;
 
         // 如果未跳过写入, 则写入 SD 卡
         if (!_skipSDWrite) {
@@ -446,7 +415,7 @@ namespace WebUI {
     }
 
     void FileTransferServer::sendResponse(ResponseStatus status, uint16_t nextPacketIndex) {
-        // 安全检查: 确保客户端有效
+        // 安全检查: 确保客户端有效且已连接
         if (!_transferClient || !_transferClient.connected()) {
             FTS_ERROR("sendResponse: client not connected");
             return;
@@ -496,22 +465,28 @@ namespace WebUI {
     }
 
     void FileTransferServer::cleanup() {
-        // 1. 关闭文件 (如果已打开)
+        // 1. 关闭文件并输出统计日志
+        int packets = (int)_expectedPacketIndex - 1;
         if (_uploadFile) {
+            _uploadFile.flush();
+            size_t fileSize = _uploadFile.size();
             _uploadFile.close();
+            FTS_INFO("File closed: %s, packets=%d, written=%zu, size=%zu",
+                _fileName, packets, _totalBytesWritten, fileSize);
+        } else if (_fileName[0] != '\0') {
+            FTS_INFO("File closed (no write): %s, packets=%d, written=%zu",
+                _fileName, packets, _totalBytesWritten);
         }
-        _uploadFile = File();  // 重置为空 File 对象
+        _uploadFile = File();
 
         // 2. 恢复 SD 卡状态 (只在未跳过写入时)
         if (!_skipSDWrite) {
             set_sd_state(SDState::Idle);
         }
 
-        // 3. 断开客户端连接 (如果已连接)
+        // 3. 不再主动断开客户端连接, 让客户端自己断开
         if (_transferClient && _transferClient.connected()) {
-            _transferClient.flush();
-            _transferClient.stop();
-            FTS_INFO("Client disconnected Initiate");
+            FTS_INFO("Client connection preserved");
         } else {
             FTS_INFO("Client already disconnected");
         }
@@ -525,16 +500,11 @@ namespace WebUI {
         _expectedPacketIndex = 0;
         _lastActivityTime    = 0;
         _skipSDWrite         = false;
+        _totalBytesWritten   = 0;
     }
 
     FileTransferServer::~FileTransferServer() {
         end();
-
-        // 释放接收缓冲区
-        if (_rxBuffer) {
-            delete[] _rxBuffer;
-            _rxBuffer = nullptr;
-        }
     }
 }
 

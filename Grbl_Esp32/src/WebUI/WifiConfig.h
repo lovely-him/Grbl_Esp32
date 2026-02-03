@@ -63,7 +63,7 @@ namespace WebUI {
     static const int   DEFAULT_AP_CHANNEL        = 1;
     static const int   DEFAULT_WEBSERVER_PORT    = 80;
     static const int   DEFAULT_HTTP_STATE        = 1;
-    static const int   DEFAULT_TELNETSERVER_PORT = 23;
+    static const int   DEFAULT_TELNETSERVER_PORT = 8080;
     static const int   DEFAULT_TELNET_STATE      = 1;
     static const int   DEFAULT_FILE_TRANSFER_PORT = 8081;
     static const int   DEFAULT_STA_IP_MODE       = DHCP_MODE;
@@ -129,6 +129,8 @@ namespace WebUI {
         static void   WiFiEvent(WiFiEvent_t event);
         static String _hostname;
         static bool   _events_registered;
+        static bool   _auto_reconnect_enabled;
+        static int32_t _reconnect_attempt;
     };
 
     extern WiFiConfig wifi_config;
