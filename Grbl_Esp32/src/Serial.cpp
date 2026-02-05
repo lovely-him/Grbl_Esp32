@@ -69,6 +69,15 @@ static TaskHandle_t clientCheckTaskHandle = 0;
 
 WebUI::InputBuffer client_buffer[CLIENT_COUNT];  // create a buffer for each client
 
+#if defined(ENABLE_SD_CARD) && defined(ENABLE_SD_PENDING_COMMAND)
+// 延迟执行命令的缓冲区 (仅用于文件上传期间) 
+static char     pending_command[32];                // 待执行的命令缓冲区
+static uint8_t  pending_command_length = 0;         // 命令长度
+static uint8_t  pending_command_client = CLIENT_ALL;  // 命令来源客户端
+static uint32_t pending_command_timestamp = 0;      // 命令缓存时间戳 (毫秒) 
+#define PENDING_COMMAND_TIMEOUT_MS 1000             // 超时时间: 1秒
+#endif
+
 // Returns the number of bytes available in a client buffer.
 uint8_t client_get_rx_buffer_available(uint8_t client) {
 #ifdef REVERT_TO_ARDUINO_SERIAL
@@ -173,6 +182,27 @@ void clientCheckTask(void* pvParameters) {
     uint8_t            client;  // who sent the data
     static UBaseType_t uxHighWaterMark = 0;
     while (true) {  // run continuously
+#if defined(ENABLE_SD_CARD) && defined(ENABLE_SD_PENDING_COMMAND)
+        if (pending_command_length > 0) {
+            if (get_sd_state(false) < SDState::Busy) {
+                grbl_send(CLIENT_SERIAL, "[MSG:Executing pending command]\r\n");
+
+                vTaskEnterCritical(&myMutex);
+                for (uint8_t i = 0; i < pending_command_length; i++) {
+                    client_buffer[pending_command_client].write(pending_command[i]);
+                }
+                vTaskExitCritical(&myMutex);
+
+                pending_command_length = 0;
+                pending_command_client = CLIENT_ALL;
+            } else if (millis() - pending_command_timestamp > PENDING_COMMAND_TIMEOUT_MS) {
+                grbl_send(CLIENT_SERIAL, "[MSG:Pending command timeout, discarded]\r\n");
+                pending_command_length = 0;
+                pending_command_client = CLIENT_ALL;
+            }
+        }
+#endif
+
         while ((client = getClientChar(&data)) != CLIENT_ALL) {
             // Pick off realtime command characters directly from the serial stream. These characters are
             // not passed into the main buffer, but these set system state flag bits for realtime execution.
@@ -180,13 +210,28 @@ void clientCheckTask(void* pvParameters) {
                 execute_realtime_command(static_cast<Cmd>(data), client);
             } else {
 #if defined(ENABLE_SD_CARD)
-                if (get_sd_state(false) < SDState::Busy) {
+                SDState sd_state = get_sd_state(false);
+                if (sd_state < SDState::Busy) {
 #endif  //ENABLE_SD_CARD
                     vTaskEnterCritical(&myMutex);
                     client_buffer[client].write(data);
                     vTaskExitCritical(&myMutex);
 #if defined(ENABLE_SD_CARD)
                 } else {
+#if defined(ENABLE_SD_PENDING_COMMAND)
+                    if (sd_state == SDState::BusyUploading) {
+                        if (pending_command_client != client || pending_command_length >= sizeof(pending_command)) {
+                            pending_command_client = client;
+                            pending_command_length = 0;
+                            pending_command_timestamp = millis();
+                        }
+
+                        if (pending_command_length < sizeof(pending_command)) {
+                            pending_command[pending_command_length++] = data;
+                        }
+                    }
+#endif  //ENABLE_SD_PENDING_COMMAND
+
                     if (data == '\r' || data == '\n') {
                         grbl_sendf(client, "error %d\r\n", Error::AnotherInterfaceBusy);
                         grbl_msg_sendf(client, MsgLevel::Info, "SD card job running");

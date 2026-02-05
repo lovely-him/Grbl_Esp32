@@ -90,10 +90,10 @@ namespace WebUI {
         static constexpr uint8_t  RESPONSE_PACKET_SIZE  = 8;       /**< 响应包固定长度 */
         static constexpr uint8_t  MIN_PACKET_SIZE       = 6;       /**< 最小包长度 */
         static constexpr uint16_t TRANSFER_TIMEOUT_MS   = 10000;   /**< 超时时间 (毫秒) */
-        static constexpr uint32_t RXBUFFERSIZE          = 34816;   /**< 接收缓冲区大小 (33KB, 支持 32KB 数据包 + 头部) */
+        static constexpr size_t   STREAM_BUFFER_SIZE    = 1536;    /**< 流式缓冲区大小 (1.5KB, 足够 1 个 MTU) */
 
-        // 接收缓冲区 (静态分配, 编译时定义)
-        static uint8_t _rxBuffer[RXBUFFERSIZE];  /**< 接收缓冲区 (静态分配) */
+        // 流式接收缓冲区 (只需存储 1 个 MTU 的数据)
+        static uint8_t _streamBuffer[STREAM_BUFFER_SIZE];  /**< 流式数据缓冲区 */
 
         /**
          * @brief 数据包类型枚举
@@ -116,6 +116,17 @@ namespace WebUI {
         TransferState _state;  /**< 当前传输状态 */
 
         /**
+         * @brief 包接收状态机枚举 (流式处理)
+         */
+        enum class PacketReceiveState : uint8_t {
+            WaitingHeader,      /**< 等待帧头 (0xAB) */
+            ReceivingHeader,    /**< 接收包头部 (6 字节) */
+            StreamingData,      /**< 流式接收并写入数据 */
+            VerifyingChecksum   /**< 验证校验和 (2 字节) */
+        };
+        PacketReceiveState _packetState;  /**< 当前包接收状态 */
+
+        /**
          * @brief 响应状态码枚举
          */
         enum class ResponseStatus : uint8_t {
@@ -124,7 +135,17 @@ namespace WebUI {
             ServerError   = 0x03   /**< 服务器错误 (超时, SD卡, 状态机等服务器问题) */
         };
 
-        size_t   _rxBufferSize;         /**< 缓冲区中当前数据长度 */
+        // 流式接收状态变量
+        uint8_t  _headerBuffer[6];              /**< 帧头缓冲区 (6 字节) */
+        size_t   _headerBytesReceived;          /**< 已接收的帧头字节数 */
+        uint16_t _currentPacketLen;             /**< 当前包总长度 */
+        uint16_t _currentPacketIndex;           /**< 当前包序号 */
+        size_t   _dataBytesReceived;            /**< 已接收的数据字节数 */
+        size_t   _dataLen;                      /**< 数据部分长度 (不含头部和校验和) */
+        uint32_t _checksumAccum;                /**< 累加校验和 */
+        uint8_t  _checksumBuffer[2];            /**< 校验和缓冲区 (2 字节) */
+        size_t   _checksumBytesReceived;        /**< 已接收的校验和字节数 */
+        size_t   _packetStartPos;               /**< 包起始文件位置 (用于回滚) */
 
         // 文件传输状态
         File     _uploadFile;           /**< 当前上传的文件对象 */
@@ -145,35 +166,61 @@ namespace WebUI {
         void handleClient();
 
         /**
-         * @brief 解析接收缓冲区中的数据包
+         * @brief 流式处理接收到的数据 (一次处理一个 MTU 包)
          *
-         * 验证魔术字节, 提取包长度, 验证校验和, 根据命令类型分发处理.
+         * 状态机主循环, 根据当前状态处理缓冲区中的数据:
+         * - WaitingHeader: 查找帧头 0xAB
+         * - ReceivingHeader: 接收剩余 5 字节头部
+         * - StreamingData: 边接收边写入 SD 卡
+         * - VerifyingChecksum: 接收并验证校验和
          *
-         * @return true 成功解析并处理一个完整数据包, false 数据不足或解析失败
+         * @param[in] buffer 接收到的数据缓冲区
+         * @param[in] len 缓冲区长度
          */
-        bool parsePacket();
+        void processStreamData(uint8_t* buffer, size_t len);
+
+        /**
+         * @brief 解析头部并准备流式接收数据
+         *
+         * 提取包长度, 包序号, 命令类型, 根据命令类型准备流式接收.
+         *
+         * @return true 解析成功并准备好流式接收, false 解析失败
+         */
+        bool parseHeaderAndPrepareStream();
+
+        /**
+         * @brief 处理 StreamingData 状态的数据接收
+         *
+         * 根据 TransferState 和 PacketType 处理数据:
+         * - ReceivingHeader + Header: 累积文件名
+         * - ReceivingData + Data: 写入 SD 卡
+         * - ReceivingData + Cancel: 跳过数据
+         *
+         * @param[in] buffer 接收到的数据缓冲区
+         * @param[in] len 缓冲区长度
+         * @param[in,out] offset 当前处理位置 (引用传递) 
+         * @return true 继续处理, false 发生错误需要退出
+         */
+        bool handleStreamingData(uint8_t* buffer, size_t len, size_t& offset);
+
+        /**
+         * @brief 验证校验和并发送响应
+         *
+         * 验证累加的校验和, 校验失败时回滚文件位置.
+         * 校验成功时发送 ACK 响应.
+         */
+        void verifyChecksumAndRespond();
 
         /**
          * @brief 处理文件名包 (Header Packet)
          *
-         * 检查 SD 卡状态, 提取文件名, 创建文件, 切换到接收数据状态.
+         * 检查 SD 卡状态, 规范化文件名, 创建文件, 切换到接收数据状态.
+         * 直接操作 _fileName 成员变量.
          *
-         * @param[in] data 数据包内容指针
-         * @param[in] len 数据包长度
-         * @return true 处理成功, 可以继续; false 已调用 cleanup(), 必须立即退出
+         * @param[in] nameLen 文件名长度
+         * @return true 处理成功, false 处理失败
          */
-        bool processHeaderPacket(const uint8_t* data, uint16_t len);
-
-        /**
-         * @brief 处理数据包 (Data Packet)
-         *
-         * 验证包序号, 提取数据内容, 写入 SD 卡, 发送 ACK.
-         *
-         * @param[in] data 数据包内容指针
-         * @param[in] len 数据包长度
-         * @return true 处理成功, 可以继续; false 已调用 cleanup(), 必须立即退出
-         */
-        bool processDataPacket(const uint8_t* data, uint16_t len);
+        bool processHeaderPacket(size_t nameLen);
 
 
         /**
@@ -189,18 +236,6 @@ namespace WebUI {
         void sendResponse(ResponseStatus status, uint16_t nextPacketIndex = 0);
 
         /**
-         * @brief 验证数据包校验和
-         *
-         * 计算数据包的 16 位累加和并与包中的校验和字段比较.
-         * 校验和算法: 累加除最后 2 字节外的所有字节, 取低 16 位.
-         *
-         * @param[in] data 数据包内容指针
-         * @param[in] len 数据包长度
-         * @return true 校验和正确, false 校验和错误
-         */
-        bool verifyChecksum(const uint8_t* data, uint16_t len);
-
-        /**
          * @brief 清理传输状态和资源
          *
          * 统一的清理函数, 自动处理所有资源释放:
@@ -212,6 +247,14 @@ namespace WebUI {
          * @note 不会主动断开客户端连接, 只清理内部状态
          */
         void cleanup();
+
+        /**
+         * @brief 重置所有状态变量
+         *
+         * 统一的状态重置函数, 在构造函数, begin() 和 cleanup() 中调用.
+         * 避免代码重复, 确保重置逻辑一致.
+         */
+        void resetState();
     };
 
     extern FileTransferServer file_transfer_server;

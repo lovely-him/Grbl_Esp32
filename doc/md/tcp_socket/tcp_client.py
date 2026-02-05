@@ -8,6 +8,8 @@ TCP Socket 文件传输客户端
 
 import socket
 import time
+import urllib.request
+import urllib.parse
 from typing import Optional, Dict, Callable
 
 
@@ -159,6 +161,61 @@ class FileTransferClient:
         """
         packet = self._build_cancel_packet()
         return self._send_and_receive(packet)
+
+    def send_http_command(self, url: str, command: str, timeout: int = 30) -> Dict:
+        """发送 HTTP 命令到 Grbl
+
+        Args:
+            url: HTTP 接口 URL (如 "http://192.168.8.177/command")
+            command: Grbl 命令 (如 "$H", "$X", "?")
+            timeout: 超时时间 (秒)
+
+        Returns:
+            {
+                'success': bool,        # 请求是否成功
+                'status_code': int,     # HTTP 状态码
+                'response': str,        # 响应内容
+                'error': str            # 错误信息 (失败时)
+            }
+        """
+        try:
+            # URL 编码命令
+            params = urllib.parse.urlencode({'commandText': command})
+            full_url = f"{url}?{params}"
+
+            # 发送 GET 请求
+            req = urllib.request.Request(full_url)
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                status_code = response.getcode()
+                content = response.read().decode('utf-8')
+
+                return {
+                    'success': status_code == 200,
+                    'status_code': status_code,
+                    'response': content,
+                    'error': None if status_code == 200 else f"HTTP {status_code}"
+                }
+        except urllib.error.HTTPError as e:
+            return {
+                'success': False,
+                'status_code': e.code,
+                'response': '',
+                'error': f"HTTP {e.code}: {e.reason}"
+            }
+        except urllib.error.URLError as e:
+            return {
+                'success': False,
+                'status_code': 0,
+                'response': '',
+                'error': f"Network error: {e.reason}"
+            }
+        except Exception as e:
+            return {
+                'success': False,
+                'status_code': 0,
+                'response': '',
+                'error': str(e)
+            }
 
     def _build_header_packet(self, filename: str) -> bytes:
         """构建文件信息包

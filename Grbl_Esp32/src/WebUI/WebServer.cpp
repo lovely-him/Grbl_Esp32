@@ -1571,11 +1571,20 @@ namespace WebUI {
     void Web_Server::handle_Websocket_Event(uint8_t num, uint8_t type, uint8_t* payload, size_t length) {
         switch (type) {
             case WStype_DISCONNECTED:
-                //USE_SERIAL.printf("[%u] Disconnected!\n", num);
+#ifdef ENABLE_WEBSOCKET_CLIENT_LOG
+                char msg[128];
+                sprintf(msg, "[MSG:WebSocket Client(%d) disconnected]\r\n", num);
+                grbl_send(CLIENT_SERIAL, msg);
+#endif
                 break;
             case WStype_CONNECTED: {
+#ifdef ENABLE_WEBSOCKET_CLIENT_LOG
                 IPAddress ip = _socket_server->remoteIP(num);
-                //USE_SERIAL.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+                char msg[128];
+                sprintf(msg, "[MSG:WebSocket Client(%d) connected from %d.%d.%d.%d]\r\n",
+                        num, ip[0], ip[1], ip[2], ip[3]);
+                grbl_send(CLIENT_SERIAL, msg);
+#endif
                 String s = "CURRENT_ID:" + String(num);
                 // send message to client
                 _id_connection = num;

@@ -16,6 +16,33 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from tcp_client import FileTransferClient
 
 
+def send_http_after_upload(client: FileTransferClient, config: dict):
+    """文件传输后发送 HTTP 命令 (如果配置启用)"""
+    http_config = config.get('http_command', {})
+
+    if not http_config.get('auto_send_after_upload', False):
+        return
+
+    # 延迟等待
+    delay = http_config.get('delay_after_upload', 1.0)
+    if delay > 0:
+        print(f"[INFO] 等待 {delay} 秒后发送 HTTP 命令...")
+        time.sleep(delay)
+
+    # 发送命令
+    url = http_config.get('url', 'http://192.168.8.177/command')
+    command = http_config.get('command', '$H')
+    timeout = http_config.get('timeout', 30)
+
+    print(f"[INFO] 发送 HTTP 命令: {command}")
+    response = client.send_http_command(url, command, timeout)
+
+    if response['success']:
+        print(f"[INFO] HTTP 命令成功")
+    else:
+        print(f"[WARN] HTTP 命令失败: {response.get('error', 'Unknown')}")
+
+
 def load_config():
     """加载配置文件"""
     config_path = os.path.join(os.path.dirname(__file__), 'test_config.json')
@@ -23,7 +50,7 @@ def load_config():
         return json.load(f)
 
 
-def test_small_file(client: FileTransferClient) -> bool:
+def test_small_file(client: FileTransferClient, config: dict = None) -> bool:
     """测试 1: 小文件传输"""
     print("\n" + "=" * 70)
     print("测试 1: 小文件传输 (Hello World)")
@@ -34,13 +61,15 @@ def test_small_file(client: FileTransferClient) -> bool:
 
     if success:
         print("[PASS] 小文件传输成功")
+        if config:
+            send_http_after_upload(client, config)
     else:
         print("[FAIL] 小文件传输失败")
 
     return success
 
 
-def test_1kb_file(client: FileTransferClient) -> bool:
+def test_1kb_file(client: FileTransferClient, config: dict = None) -> bool:
     """测试 2: 1KB 文件传输"""
     print("\n" + "=" * 70)
     print("测试 2: 1KB 文件传输")
@@ -56,13 +85,15 @@ def test_1kb_file(client: FileTransferClient) -> bool:
     if success:
         speed = len(test_data) / duration / 1024  # KB/s
         print(f"[PASS] 1KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
+        if config:
+            send_http_after_upload(client, config)
     else:
         print("[FAIL] 1KB 文件传输失败")
 
     return success
 
 
-def test_4kb_file(client: FileTransferClient) -> bool:
+def test_4kb_file(client: FileTransferClient, config: dict = None) -> bool:
     """测试 3: 4KB 文件传输"""
     print("\n" + "=" * 70)
     print("测试 3: 4KB 文件传输")
@@ -77,13 +108,15 @@ def test_4kb_file(client: FileTransferClient) -> bool:
     if success:
         speed = len(test_data) / duration / 1024
         print(f"[PASS] 4KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
+        if config:
+            send_http_after_upload(client, config)
     else:
         print("[FAIL] 4KB 文件传输失败")
 
     return success
 
 
-def test_8kb_file(client: FileTransferClient) -> bool:
+def test_8kb_file(client: FileTransferClient, config: dict = None) -> bool:
     """测试 4: 8KB 文件传输"""
     print("\n" + "=" * 70)
     print("测试 4: 8KB 文件传输")
@@ -98,13 +131,15 @@ def test_8kb_file(client: FileTransferClient) -> bool:
     if success:
         speed = len(test_data) / duration / 1024
         print(f"[PASS] 8KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
+        if config:
+            send_http_after_upload(client, config)
     else:
         print("[FAIL] 8KB 文件传输失败")
 
     return success
 
 
-def test_16kb_file(client: FileTransferClient) -> bool:
+def test_16kb_file(client: FileTransferClient, config: dict = None) -> bool:
     """测试 5: 16KB 文件传输"""
     print("\n" + "=" * 70)
     print("测试 5: 16KB 文件传输")
@@ -119,13 +154,15 @@ def test_16kb_file(client: FileTransferClient) -> bool:
     if success:
         speed = len(test_data) / duration / 1024
         print(f"[PASS] 16KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
+        if config:
+            send_http_after_upload(client, config)
     else:
         print("[FAIL] 16KB 文件传输失败")
 
     return success
 
 
-def test_32kb_file(client: FileTransferClient) -> bool:
+def test_32kb_file(client: FileTransferClient, config: dict = None) -> bool:
     """测试 6: 32KB 文件传输 (单包最大) """
     print("\n" + "=" * 70)
     print("测试 6: 32KB 文件传输 (单包最大) ")
@@ -140,13 +177,15 @@ def test_32kb_file(client: FileTransferClient) -> bool:
     if success:
         speed = len(test_data) / duration / 1024
         print(f"[PASS] 32KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
+        if config:
+            send_http_after_upload(client, config)
     else:
         print("[FAIL] 32KB 文件传输失败")
 
     return success
 
 
-def test_100kb_file(client: FileTransferClient) -> bool:
+def test_100kb_file(client: FileTransferClient, config: dict = None) -> bool:
     """测试 7: 100KB 文件传输 (多包) """
     print("\n" + "=" * 70)
     print("测试 7: 100KB 文件传输 (多包) ")
@@ -162,13 +201,15 @@ def test_100kb_file(client: FileTransferClient) -> bool:
     if success:
         speed = len(test_data) / duration / 1024  # KB/s
         print(f"[PASS] 100KB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
+        if config:
+            send_http_after_upload(client, config)
     else:
         print("[FAIL] 100KB 文件传输失败")
 
     return success
 
 
-def test_10mb_file(client: FileTransferClient) -> bool:
+def test_10mb_file(client: FileTransferClient, config: dict = None) -> bool:
     """测试 8: 10MB 文件传输 (大文件压力测试) """
     print("\n" + "=" * 70)
     print("测试 8: 10MB 文件传输 (大文件压力测试) ")
@@ -184,19 +225,21 @@ def test_10mb_file(client: FileTransferClient) -> bool:
     if success:
         speed = len(test_data) / duration / 1024  # KB/s
         print(f"[PASS] 10MB 文件传输成功, 耗时 {duration:.2f}秒, 速度 {speed:.2f} KB/s")
+        if config:
+            send_http_after_upload(client, config)
     else:
         print("[FAIL] 10MB 文件传输失败")
 
     return success
 
 
-def test_checksum_error(client: FileTransferClient) -> bool:
+def test_checksum_error(client: FileTransferClient, config: dict = None) -> bool:
     """测试 9: 校验和错误处理"""
     print("\n" + "=" * 70)
     print("测试 9: 校验和错误处理")
     print("=" * 70)
 
-    # 构建错误的数据包 (故意错误的校验和) 
+    # 构建错误的数据包 (故意错误的校验和)
     packet = bytearray([0xAB, 0x01, 0x00, 0x10, 0x00, 0x00])  # 长度 = 16 字节
     packet.extend(b"test.txt")
     packet.extend([0xFF, 0xFF])  # 错误的校验和
@@ -205,7 +248,7 @@ def test_checksum_error(client: FileTransferClient) -> bool:
         client.socket.sendall(bytes(packet))
         response = client.socket.recv(1024)
 
-        # 检查是否返回校验和错误 (状态码 0x02) 
+        # 检查是否返回校验和错误 (状态码 0x02)
         # 响应格式: [0xAB][STATUS][LEN_H][LEN_L][IDX_H][IDX_L][CHK_H][CHK_L]
         # 状态码在索引 1
         if len(response) >= 2 and response[1] == 0x02:
@@ -219,7 +262,7 @@ def test_checksum_error(client: FileTransferClient) -> bool:
         return False
 
 
-def test_invalid_magic_byte(client: FileTransferClient) -> bool:
+def test_invalid_magic_byte(client: FileTransferClient, config: dict = None) -> bool:
     """测试 10: 无效魔术字节处理"""
     print("\n" + "=" * 70)
     print("测试 10: 无效魔术字节处理")
@@ -264,7 +307,7 @@ def test_invalid_magic_byte(client: FileTransferClient) -> bool:
         return False
 
 
-def test_oversized_packet(client: FileTransferClient) -> bool:
+def test_oversized_packet(client: FileTransferClient, config: dict = None) -> bool:
     """测试 11: 超大包处理"""
     print("\n" + "=" * 70)
     print("测试 11: 超大包处理 (声称长度超过缓冲区) ")
@@ -299,7 +342,7 @@ def test_oversized_packet(client: FileTransferClient) -> bool:
         return False
 
 
-def test_incomplete_packet(client: FileTransferClient) -> bool:
+def test_incomplete_packet(client: FileTransferClient, config: dict = None) -> bool:
     """测试 12: 不完整包处理"""
     print("\n" + "=" * 70)
     print("测试 12: 不完整包处理 (发送部分数据后等待) ")
@@ -349,7 +392,7 @@ def test_incomplete_packet(client: FileTransferClient) -> bool:
         return False
 
 
-def test_cancel_transfer(client: FileTransferClient) -> bool:
+def test_cancel_transfer(client: FileTransferClient, config: dict = None) -> bool:
     """测试 13: 取消传输"""
     print("\n" + "=" * 70)
     print("测试 13: 取消传输")
@@ -369,7 +412,46 @@ def test_cancel_transfer(client: FileTransferClient) -> bool:
     return True
 
 
-def run_loop_test(client, test_name, test_func, interval_ms, count=None):
+def test_http_command(client: FileTransferClient, config: dict = None) -> bool:
+    """测试 14: HTTP 命令接口
+
+    测试 Grbl HTTP 命令接口的连通性和基本功能
+    """
+    print("\n" + "=" * 70)
+    print("测试 14: HTTP 命令接口")
+    print("=" * 70)
+
+    if not config:
+        print("[SKIP] 未提供配置信息")
+        return True
+
+    http_config = config.get('http_command', {})
+    if not http_config.get('enabled', False):
+        print("[SKIP] HTTP 命令测试未启用")
+        return True
+
+    url = http_config.get('url', 'http://192.168.8.177/command')
+    command = http_config.get('command', '$H')
+    timeout = http_config.get('timeout', 30)
+
+    print(f"[INFO] 发送 HTTP 命令: {command}")
+    print(f"[INFO] URL: {url}")
+
+    response = client.send_http_command(url, command, timeout)
+
+    if response['success']:
+        print(f"[PASS] HTTP 命令成功, 状态码: {response['status_code']}")
+        if response['response']:
+            print(f"[INFO] 响应内容: {response['response'][:100]}")
+        return True
+    else:
+        print(f"[WARN] HTTP 命令失败: {response.get('error', 'Unknown')}")
+        print(f"[INFO] 状态码: {response['status_code']}")
+        # HTTP 失败不影响测试结果
+        return True
+
+
+def run_loop_test(client, test_name, test_func, config, interval_ms, count=None):
     """循环执行指定测试"""
     print("=" * 70)
     print(f"循环测试模式: {test_name}")
@@ -398,7 +480,7 @@ def run_loop_test(client, test_name, test_func, interval_ms, count=None):
 
             # 执行测试
             try:
-                result = test_func(client)
+                result = test_func(client, config)
                 if result:
                     passed += 1
                     print(f"[PASS] 第 {iteration} 次测试通过")
@@ -435,10 +517,12 @@ def main():
     """主测试流程"""
     # 解析命令行参数
     parser = argparse.ArgumentParser(description='TCP Socket 文件传输自动化测试')
-    parser.add_argument('-l', '--loop', type=str, help='循环测试指定项目 (small/1kb/4kb/8kb/16kb/32kb/100kb/10mb/checksum/invalid-magic/oversized/incomplete/cancel)')
+    parser.add_argument('-l', '--loop', type=str, help='循环测试指定项目 (small/1kb/4kb/8kb/16kb/32kb/100kb/10mb/checksum/invalid-magic/oversized/incomplete/cancel/http)')
     parser.add_argument('-i', '--interval', type=int, default=100, help='循环间隔 (毫秒) , 默认100ms')
     parser.add_argument('-c', '--count', type=int, help='循环次数, 默认无限循环')
     parser.add_argument('--continue-on-failure', action='store_true', help='失败后继续执行 (默认失败即停止) ')
+    parser.add_argument('--enable-http-after-upload', action='store_true', help='在每次文件传输后发送 HTTP 命令 (覆盖配置文件) ')
+    parser.add_argument('--disable-http-after-upload', action='store_true', help='禁用文件传输后的 HTTP 命令 (覆盖配置文件) ')
     args = parser.parse_args()
 
     # 测试映射表
@@ -456,6 +540,7 @@ def main():
         'oversized': ("超大包处理", test_oversized_packet),
         'incomplete': ("不完整包处理", test_incomplete_packet),
         'cancel': ("取消传输", test_cancel_transfer),
+        'http': ("HTTP 命令接口", test_http_command),
     }
 
     print("=" * 70)
@@ -464,12 +549,23 @@ def main():
 
     # 加载配置
     config = load_config()
+
+    # 命令行参数覆盖配置文件
+    if args.enable_http_after_upload:
+        if 'http_command' not in config:
+            config['http_command'] = {}
+        config['http_command']['auto_send_after_upload'] = True
+    if args.disable_http_after_upload:
+        if 'http_command' not in config:
+            config['http_command'] = {}
+        config['http_command']['auto_send_after_upload'] = False
+
     server_ip = config['server']['ip']
     server_port = config['server']['port']
 
     print(f"\n服务器地址: {server_ip}:{server_port}")
 
-    # 创建客户端 (启用调试模式) 
+    # 创建客户端 (启用调试模式)
     client = FileTransferClient(server_ip, server_port, debug=True)
 
     # 循环测试模式
@@ -480,7 +576,7 @@ def main():
             return
 
         test_name, test_func = test_map[args.loop]
-        run_loop_test(client, test_name, test_func, args.interval, args.count)
+        run_loop_test(client, test_name, test_func, config, args.interval, args.count)
         return
 
     # 顺序测试模式
@@ -510,6 +606,7 @@ def main():
             ("超大包处理", test_oversized_packet),
             ("不完整包处理", test_incomplete_packet),
             ("取消传输", test_cancel_transfer),
+            ("HTTP 命令接口", test_http_command),
         ]
 
         for test_name, test_func in tests:
@@ -525,7 +622,7 @@ def main():
                         break
                     continue
 
-                result = test_func(client)
+                result = test_func(client, config)
                 results.append((test_name, result))
 
                 # 默认失败即停止, 除非指定 --continue-on-failure

@@ -33,6 +33,7 @@
 */
 
 #include "../src/Grbl.h"
+#include "../src/WebUI/WebSettings.h"  // 访问 wifi_radio_mode
 #include <QMI8658.h>
 #include <WiFi.h>
 #include <Wire.h>
@@ -96,7 +97,7 @@ enum class LEDState {
 // 全局变量
 // ============================================================================
 
-// I2C 互斥锁 (保护传感器访问) 
+// I2C 互斥锁 (保护传感器访问)
 static SemaphoreHandle_t i2c_mutex = NULL;
 
 // 系统状态名称
@@ -302,7 +303,7 @@ bool check_tilt_sensor(uint8_t debug_log) {
 
 // 初始化传感器
 bool init_tilt_sensor() {
-    // 创建 I2C 互斥锁 (只创建一次) 
+    // 创建 I2C 互斥锁 (只创建一次)
     if (i2c_mutex == NULL) {
         i2c_mutex = xSemaphoreCreateMutex();
         if (i2c_mutex == NULL) {
@@ -360,7 +361,7 @@ bool check_tilt_sensor(uint8_t debug_log) {
         return last_tilt_state;
     }
 
-    // 尝试获取互斥锁 (超时 100ms) 
+    // 尝试获取互斥锁 (超时 100ms)
     if (xSemaphoreTake(i2c_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
         HIM_LOG_WARN("Failed to acquire I2C mutex (timeout), using last state");
         return last_tilt_state;
@@ -606,10 +607,30 @@ void handle_long_press_3s() {
 
 // 按钮超长按处理函数
 void handle_long_press_10s() {
-    HIM_LOG_INFO("Long press 10s - Reset WiFi to AP");
-    WebUI::inputBuffer.push("[ESP410]AP\r");
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    WebUI::inputBuffer.push("[ESP444]RESTART\r");
+    HIM_LOG_INFO("Long press 10s - Reset WiFi to AP mode");
+
+    // 1. 直接修改WiFi模式设置为AP (保存到NVS) 
+    if (WebUI::wifi_radio_mode) {
+        char ap_mode[] = "AP";  // setStringValue 需要 char* 而不是 const char*
+        Error err = WebUI::wifi_radio_mode->setStringValue(ap_mode);
+        if (err == Error::Ok) {
+            HIM_LOG_INFO("WiFi mode set to AP, saved to NVS");
+        } else {
+            HIM_LOG_ERROR("Failed to set WiFi mode to AP (error=%d)", (int)err);
+        }
+    } else {
+        HIM_LOG_ERROR("wifi_radio_mode is NULL!");
+    }
+
+    // 2. 等待NVS写入完成
+    vTaskDelay(pdMS_TO_TICKS(100));
+
+    // 3. 直接重启ESP32 (不依赖指令系统) 
+    HIM_LOG_INFO("Restarting ESP32 in 500ms...");
+    vTaskDelay(pdMS_TO_TICKS(500));  // 给日志输出时间
+
+    ESP.restart();
+    while(1) {}  // 等待重启完成
 }
 
 // ============================================================================
@@ -926,12 +947,13 @@ void led_fan_control_task(void* parameter) {
 // ============================================================================
 
 void safety_monitor_task(void* parameter) {
-    HIM_LOG_INFO("DEFAULT_SAFETY_DOOR_ENABLED: %d", DEFAULT_SAFETY_DOOR_ENABLED);
-    HIM_LOG_INFO("DEFAULT_TILT_SENSOR_ENABLED: %d", DEFAULT_TILT_SENSOR_ENABLED);
+    // HIM_LOG_INFO("DEFAULT_SAFETY_DOOR_ENABLED: %d", DEFAULT_SAFETY_DOOR_ENABLED);
+    // HIM_LOG_INFO("DEFAULT_TILT_SENSOR_ENABLED: %d", DEFAULT_TILT_SENSOR_ENABLED);
 
     bool last_door_state = false;
     bool last_tilt_state = false;
     State state_before_safety_door = State::Idle;
+    static bool _auto_homing_requested = false;
 
     while (true) {
         // 门状态检查
@@ -1014,8 +1036,9 @@ void safety_monitor_task(void* parameter) {
             }
         }
 
-        if (auto_homing_requested) {
+        if (auto_homing_requested && !_auto_homing_requested) {
             auto_homing_requested = false;
+            _auto_homing_requested = true;
             if (sys.state == State::Alarm) {
                 if (door_open_now) {
                     HIM_LOG_WARN("Skip auto-homing: safety door is open");

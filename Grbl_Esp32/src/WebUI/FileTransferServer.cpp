@@ -78,15 +78,28 @@ namespace WebUI {
     uint16_t    FileTransferServer::_port           = 0;
     WiFiServer* FileTransferServer::_transferServer = NULL;
     WiFiClient  FileTransferServer::_transferClient;
-    uint8_t     FileTransferServer::_rxBuffer[FileTransferServer::RXBUFFERSIZE];
+    uint8_t     FileTransferServer::_streamBuffer[FileTransferServer::STREAM_BUFFER_SIZE];
 
     FileTransferServer::FileTransferServer() {
-        _state               = TransferState::Idle;
-        _rxBufferSize        = 0;
-        _expectedPacketIndex = 0;
-        _lastActivityTime    = 0;
-        _skipSDWrite         = false;
-        _totalBytesWritten   = 0;
+        resetState();
+    }
+
+    void FileTransferServer::resetState() {
+        _state                  = TransferState::Idle;
+        _packetState            = PacketReceiveState::WaitingHeader;
+        _headerBytesReceived    = 0;
+        _dataBytesReceived      = 0;
+        _checksumBytesReceived  = 0;
+        _dataLen                = 0;
+        _currentPacketLen       = 0;
+        _currentPacketIndex     = 0;
+        _checksumAccum          = 0;
+        _packetStartPos         = 0;
+        _expectedPacketIndex    = 0;
+        _lastActivityTime       = 0;
+        _skipSDWrite            = false;
+        _totalBytesWritten      = 0;
+        _fileName[0]            = '\0';
     }
 
     bool FileTransferServer::begin() {
@@ -96,12 +109,7 @@ namespace WebUI {
         _port = file_transfer_port->get();
 
         // 重置状态变量
-        _state               = TransferState::Idle;
-        _rxBufferSize        = 0;
-        _expectedPacketIndex = 0;
-        _lastActivityTime    = 0;
-        _skipSDWrite         = false;
-        _totalBytesWritten   = 0;
+        resetState();
 
         // 创建服务器实例
         _transferServer = new WiFiServer(_port);
@@ -109,14 +117,16 @@ namespace WebUI {
             FTS_ERROR("Failed to create file transfer server");
             return false;
         }
-
         _transferServer->setNoDelay(true);
 
         // 启动服务器
         _transferServer->begin();
         _setupdone = true;
 
-        FTS_INFO("Server started on port %d (static buffer: %d bytes)", _port, RXBUFFERSIZE);
+        char msg[128];
+        sprintf(msg, "[MSG:Server started on port %d (stream buffer: %d bytes)]\r\n",
+                _port, STREAM_BUFFER_SIZE);
+        grbl_send(CLIENT_SERIAL, msg);
         return true;
     }
 
@@ -131,8 +141,6 @@ namespace WebUI {
             delete _transferServer;
             _transferServer = NULL;
         }
-
-        _rxBufferSize = 0;
     }
 
     void FileTransferServer::handle() {
@@ -149,9 +157,14 @@ namespace WebUI {
                 cleanup();
                 _transferClient = newClient;
                 _state = TransferState::ReceivingHeader;
-                _rxBufferSize = 0;
+                _packetState = PacketReceiveState::WaitingHeader;
+                _headerBytesReceived = 0;
                 _lastActivityTime = millis();
-                FTS_INFO("Client connected");
+                IPAddress clientIP = _transferClient.remoteIP();
+                char msg[128];
+                sprintf(msg, "[MSG:FileTransfer Client(0) connected from %d.%d.%d.%d]\r\n",
+                        clientIP[0], clientIP[1], clientIP[2], clientIP[3]);
+                grbl_send(CLIENT_SERIAL, msg);
             }
         }
 
@@ -161,16 +174,16 @@ namespace WebUI {
         } else {
             // 客户端断开连接, 统一处理 (不区分状态)
             if (_state != TransferState::Idle) {
+                grbl_send(CLIENT_SERIAL, "[MSG:FileTransfer Client(0) disconnected]\r\n");
                 cleanup();
             }
         }
     }
 
     void FileTransferServer::handleClient() {
-        // 检查超时
+        // 1. 检查超时 (只判断一次) 
         if (_state != TransferState::Idle) {
             if (millis() - _lastActivityTime > TRANSFER_TIMEOUT_MS) {
-                // 服务器超时 = 传输失败 (无论什么状态)
                 FTS_INFO("Timeout - transfer failed");
                 sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
                 cleanup();
@@ -178,148 +191,378 @@ namespace WebUI {
             }
         }
 
-        // 读取可用数据
+        // 2. 一次性读取可用数据 (最多 1 个 MTU 包) 
         int available = _transferClient.available();
         if (available > 0) {
-            if (RXBUFFERSIZE <= _rxBufferSize || RXBUFFERSIZE <= (_rxBufferSize + available)) {
-                FTS_ERROR("RX buffer overflow (%d,%d,%d bytes)", RXBUFFERSIZE, _rxBufferSize, available);
-                _rxBufferSize = 0;
-            }
+            size_t toRead = min((size_t)available, STREAM_BUFFER_SIZE);
+            int bytesRead = _transferClient.read(_streamBuffer, toRead);
 
-            int readSize = min(available, (int)(RXBUFFERSIZE - _rxBufferSize));
-            if (readSize > 0) {
-                int bytesRead = _transferClient.read(_rxBuffer + _rxBufferSize, readSize);
-                if (bytesRead > 0) {
-                    _rxBufferSize += (size_t)bytesRead;
-                    _lastActivityTime = millis();
-                }
-            }
-
-            // 解析和处理数据包
-            while (parsePacket()) {
-                COMMANDS::wait(0); // 让出 CPU 给实时任务
+            if (bytesRead > 0) {
+                _lastActivityTime = millis();  // 更新活动时间 (只更新一次) 
+                processStreamData(_streamBuffer, bytesRead);  // 处理这个 MTU 包
             }
         }
     }
 
-    bool FileTransferServer::parsePacket() {
-        // 至少需要 6 字节: [0xAB][CMD][LEN_H][LEN_L][...][CHK_H][CHK_L]
-        if (_rxBufferSize < MIN_PACKET_SIZE) {
-            return false;
+    void FileTransferServer::processStreamData(uint8_t* buffer, size_t len) {
+        size_t offset = 0;
+
+        while (offset < len) {
+            switch (_packetState) {
+                case PacketReceiveState::WaitingHeader:
+                    while (offset < len && buffer[offset] != MAGIC_BYTE) {
+                        offset++;
+                    }
+
+                    if (offset < len) {
+                        _headerBuffer[0] = MAGIC_BYTE;
+                        _headerBytesReceived = 1;
+                        _packetState = PacketReceiveState::ReceivingHeader;
+                        offset++;
+                    }
+                    break;
+
+                case PacketReceiveState::ReceivingHeader:
+                    while (_headerBytesReceived < 6 && offset < len) {
+                        _headerBuffer[_headerBytesReceived++] = buffer[offset++];
+                    }
+
+                    if (_headerBytesReceived >= 6) {
+                        if (parseHeaderAndPrepareStream()) {
+                            _packetState = PacketReceiveState::StreamingData;
+                        } else {
+                            _packetState = PacketReceiveState::WaitingHeader;
+                        }
+                    }
+                    break;
+
+                case PacketReceiveState::StreamingData: {
+                    if (!handleStreamingData(buffer, len, offset)) {
+                        return;
+                    }
+                    break;
+                }
+
+                case PacketReceiveState::VerifyingChecksum:
+                    while (_checksumBytesReceived < 2 && offset < len) {
+                        _checksumBuffer[_checksumBytesReceived++] = buffer[offset++];
+                    }
+
+                    if (_checksumBytesReceived >= 2) {
+                        verifyChecksumAndRespond();
+                    }
+                    break;
+            }
+
+            COMMANDS::wait(0);
         }
+    }
 
-        // 验证魔术字节
-        if (_rxBuffer[0] != MAGIC_BYTE) {
-            // 帧头错误, 直接丢弃整个缓冲区, 等待下一个完整帧
-            FTS_WARN("Invalid magic byte: 0x%02X, discarding %zu bytes", _rxBuffer[0], _rxBufferSize);
-            _rxBufferSize = 0;
-            return false;
-        }
+    bool FileTransferServer::parseHeaderAndPrepareStream() {
+        uint8_t cmd = _headerBuffer[1];
+        _currentPacketLen = (_headerBuffer[2] << 8) | _headerBuffer[3];
 
-        // 提取包长度 (大端序)
-        uint16_t packetLen = (_rxBuffer[2] << 8) | _rxBuffer[3];
-
-        // 验证包长度范围
-        if (packetLen < MIN_PACKET_SIZE || packetLen >= RXBUFFERSIZE) {
-            FTS_ERROR("Invalid packet length: %d", packetLen);
+        // 验证包长度
+        if (_currentPacketLen < MIN_PACKET_SIZE) {
+            FTS_ERROR("Invalid packet length: %d", _currentPacketLen);
             sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
             return false;
         }
 
-        // 检查完整包是否可用
-        if (_rxBufferSize < packetLen) {
-            // FTS_DEBUG("Incomplete packet: need %d, have %d", packetLen, _rxBufferSize);
-            return false;
-        }
-
-        // 验证校验和
-        if (!verifyChecksum(_rxBuffer, packetLen)) {
-            FTS_ERROR("Checksum error: cmd=0x%02X, len=%d", _rxBuffer[1], packetLen);
-            sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
-            return false;
-        }
-
-        // 根据命令类型和当前状态处理
-        uint8_t cmd = _rxBuffer[1];
-        FTS_DEBUG("Packet: cmd=0x%02X, len=%d, bufSize=%zu", cmd, packetLen, _rxBufferSize);
-
-        switch (cmd) {
-            case static_cast<uint8_t>(PacketType::Header): {  // Header Packet
-                // 只在 ReceivingHeader 状态接受
-                if (_state != TransferState::ReceivingHeader) {
-                    FTS_ERROR("Header packet in wrong state: %d", (int)_state);
-                    sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
-                } else {
-                    processHeaderPacket(_rxBuffer, packetLen);
-                }
-            }
-            break;
-
-            case static_cast<uint8_t>(PacketType::Data): {  // Data Packet
-                // 只在 ReceivingData 状态接受
-                if (_state != TransferState::ReceivingData) {
-                    FTS_ERROR("Data packet in wrong state: %d", (int)_state);
-                    sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
-                } else {
-                    processDataPacket(_rxBuffer, packetLen);
-                }
-            }
-            break;
-
-            case static_cast<uint8_t>(PacketType::Cancel): {  // Cancel Packet
-                // 任何非 Idle 状态都可以取消, 不发送响应, 直接清理并断开连接
-                if (_state == TransferState::Idle) {
-                    FTS_WARN("Cancel packet in Idle state, ignoring");
-                } else {
-                    FTS_INFO("User cancelled transfer");
-                    cleanup();
-                }
-            }
-            break;
-
-            default: {
-                // 未知命令 - 发送错误响应, 丢弃这个包, 继续等待
-                FTS_ERROR("Unknown command: 0x%02X", cmd);
+        // 特殊处理 Cancel 包 (6 字节, 无序号字段) 
+        if (cmd == static_cast<uint8_t>(PacketType::Cancel)) {
+            if (_currentPacketLen != 6) {
+                FTS_ERROR("Invalid Cancel packet length: %d (expected 6)", _currentPacketLen);
                 sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                return false;
             }
-            break;
+            // Cancel 包: 校验和只累加前 4 字节
+            _checksumAccum = 0;
+            for (int i = 0; i < 4; i++) {
+                _checksumAccum += _headerBuffer[i];
+            }
+            _dataLen = 0;  // 无数据部分
+            _dataBytesReceived = 0;
+
+            // 验证状态
+            if (_state != TransferState::ReceivingData) {
+                FTS_ERROR("Cancel packet in wrong state: %d", (int)_state);
+                sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                return false;
+            }
+            return true;
         }
 
-        // 移除已处理的包 (只有在处理成功时才执行)
-        if (_rxBufferSize > packetLen) {
-            memmove(_rxBuffer, _rxBuffer + packetLen, _rxBufferSize - packetLen);
-            _rxBufferSize -= packetLen;
-        } else {
-            _rxBufferSize = 0;
+        // 标准包处理 (Header 和 Data) 
+        // 验证包长度必须 >= 8 (6字节头部 + 2字节校验和) 
+        if (_currentPacketLen < 8) {
+            FTS_ERROR("Invalid standard packet length: %d (minimum 8)", _currentPacketLen);
+            sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+            return false;
+        }
+
+        _currentPacketIndex = (_headerBuffer[4] << 8) | _headerBuffer[5];
+
+        // 校验和累加前 6 字节 (包含序号) 
+        _checksumAccum = 0;
+        for (int i = 0; i < 6; i++) {
+            _checksumAccum += _headerBuffer[i];
+        }
+
+        _dataLen = _currentPacketLen - 8;
+        _dataBytesReceived = 0;
+
+        switch (_state) {
+            case TransferState::ReceivingHeader:
+                if (cmd == static_cast<uint8_t>(PacketType::Header)) {
+                    if (_currentPacketIndex != 0) {
+                        FTS_ERROR("Header packet index must be 0, got %d", _currentPacketIndex);
+                        sendResponse(ResponseStatus::ProtocolError, 0);
+                        return false;
+                    }
+                    return true;
+                } else if (cmd == static_cast<uint8_t>(PacketType::Data)) {
+                    FTS_ERROR("Data packet in wrong state: %d", (int)_state);
+                    sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                    return false;
+                } else {
+                    FTS_ERROR("Unknown command in ReceivingHeader: 0x%02X", cmd);
+                    sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                    return false;
+                }
+
+            case TransferState::ReceivingData:
+                if (cmd == static_cast<uint8_t>(PacketType::Data)) {
+                    if (_currentPacketIndex != _expectedPacketIndex) {
+                        FTS_WARN("Packet index mismatch: expected %d, got %d", _expectedPacketIndex, _currentPacketIndex);
+                        sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                        return false;
+                    }
+                    if (!_skipSDWrite && _uploadFile) {
+                        _packetStartPos = _uploadFile.position();
+                    }
+                    return true;
+                } else if (cmd == static_cast<uint8_t>(PacketType::Header)) {
+                    FTS_ERROR("Header packet in wrong state: %d", (int)_state);
+                    sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                    return false;
+                } else {
+                    FTS_ERROR("Unknown command in ReceivingData: 0x%02X", cmd);
+                    sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                    return false;
+                }
+
+            default:
+                FTS_ERROR("parseHeaderAndPrepareStream in unexpected state: %d", (int)_state);
+                sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
+                return false;
+        }
+    }
+
+    bool FileTransferServer::handleStreamingData(uint8_t* buffer, size_t len, size_t& offset) {
+        size_t remaining = _dataLen - _dataBytesReceived;
+        size_t toCopy = min(remaining, len - offset);
+
+        // 累加校验和
+        for (size_t i = 0; i < toCopy; i++) {
+            _checksumAccum += buffer[offset + i];
+        }
+
+        uint8_t packetType = _headerBuffer[1];
+
+        switch (_state) {
+            case TransferState::ReceivingHeader:
+                if (packetType == static_cast<uint8_t>(PacketType::Header)) {
+                    // 累积文件名到 _fileName
+                    if (_dataBytesReceived + toCopy <= sizeof(_fileName) - 1) {
+                        memcpy(_fileName + _dataBytesReceived, buffer + offset, toCopy);
+                    } else {
+                        FTS_ERROR("Filename too long: %zu bytes", _dataBytesReceived + toCopy);
+                        sendResponse(ResponseStatus::ProtocolError, 0);
+                        _packetState = PacketReceiveState::WaitingHeader;
+                        return false;
+                    }
+                } else {
+                    // 不应该发生 (parseHeaderAndPrepareStream 已检查) 
+                    FTS_ERROR("Unexpected packet type %d in ReceivingHeader state", packetType);
+                    sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                    _packetState = PacketReceiveState::WaitingHeader;
+                    return false;
+                }
+                break;
+
+            case TransferState::ReceivingData:
+                if (packetType == static_cast<uint8_t>(PacketType::Data)) {
+                    // 写入 SD 卡
+                    if (!_skipSDWrite && _uploadFile) {
+                        size_t written = _uploadFile.write(buffer + offset, toCopy);
+                        if (written != toCopy) {
+                            FTS_ERROR("SD write failed: wrote %zu/%zu bytes", written, toCopy);
+                            // 回滚失败 = 中止传输
+                            if (!_uploadFile.seek(_packetStartPos)) {
+                                FTS_ERROR("seek rollback failed, aborting transfer");
+                                sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
+                                cleanup();
+                                return false;
+                            }
+                            FTS_INFO("Rolled back to position %zu", _packetStartPos);
+                            sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
+                            _packetState = PacketReceiveState::WaitingHeader;
+                            return false;
+                        }
+                    }
+                    _totalBytesWritten += toCopy;
+                } else if (packetType == static_cast<uint8_t>(PacketType::Cancel)) {
+                    // Cancel 包: 数据长度为 0, 无需处理
+                } else {
+                    // 不应该发生 (parseHeaderAndPrepareStream 已检查) 
+                    FTS_ERROR("Unexpected packet type %d in ReceivingData state", packetType);
+                    sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                    _packetState = PacketReceiveState::WaitingHeader;
+                    return false;
+                }
+                break;
+
+            default:
+                FTS_ERROR("StreamingData in unexpected state: %d", (int)_state);
+                sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
+                _packetState = PacketReceiveState::WaitingHeader;
+                return false;
+        }
+
+        _dataBytesReceived += toCopy;
+        offset += toCopy;
+
+        // 数据接收完成, 转到校验阶段
+        if (_dataBytesReceived >= _dataLen) {
+            _packetState = PacketReceiveState::VerifyingChecksum;
+            _checksumBytesReceived = 0;
         }
 
         return true;
     }
 
-    bool FileTransferServer::processHeaderPacket(const uint8_t* data, uint16_t len) {
-        // 提取文件名 (UTF-8)
-        // 包格式: [0xAB][0x01][LEN_H][LEN_L][IDX_H][IDX_L][filename][CHK_H][CHK_L]
-        size_t nameLen = len - 8;  // 排除头部(6) + 校验和(2)
+    void FileTransferServer::verifyChecksumAndRespond() {
+        uint16_t receivedChecksum = (_checksumBuffer[0] << 8) | _checksumBuffer[1];
+        uint16_t calculatedChecksum = _checksumAccum & 0xFFFF;
+        uint8_t packetType = _headerBuffer[1];
 
-        // 验证文件名长度 (预留 '/' 前缀和 null 终止符)
+        // 校验和验证失败
+        if (calculatedChecksum != receivedChecksum) {
+            FTS_ERROR("Checksum error: expected 0x%04X, got 0x%04X", calculatedChecksum, receivedChecksum);
+
+            switch (_state) {
+                case TransferState::ReceivingHeader:
+                    // Header 包校验失败: 保持 ReceivingHeader 状态
+                    sendResponse(ResponseStatus::ProtocolError, 0);
+                    break;
+
+                case TransferState::ReceivingData:
+                    if (packetType == static_cast<uint8_t>(PacketType::Data)) {
+                        // Data 包校验失败: 回滚文件位置
+                        if (!_skipSDWrite && _uploadFile) {
+                            if (!_uploadFile.seek(_packetStartPos)) {
+                                FTS_ERROR("seek rollback failed, aborting transfer");
+                                sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
+                                cleanup();
+                                _packetState = PacketReceiveState::WaitingHeader;
+                                return;
+                            }
+                            FTS_INFO("Rolled back to position %zu", _packetStartPos);
+                        }
+                        sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                    } else if (packetType == static_cast<uint8_t>(PacketType::Cancel)) {
+                        // Cancel 包校验失败: 忽略
+                        FTS_WARN("Cancel packet checksum error, ignored");
+                        sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                    } else {
+                        FTS_ERROR("Checksum error in unexpected packet type: %d", packetType);
+                        sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                    }
+                    break;
+
+                default:
+                    FTS_ERROR("Checksum error in unexpected state: %d", (int)_state);
+                    sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
+                    break;
+            }
+
+            _packetState = PacketReceiveState::WaitingHeader;
+            return;
+        }
+
+        // 校验成功, 根据状态和包类型进行处理
+        switch (_state) {
+            case TransferState::ReceivingHeader:
+                if (packetType == static_cast<uint8_t>(PacketType::Header)) {
+                    // Header 包校验成功: 处理文件名, 转换状态
+                    if (processHeaderPacket(_dataBytesReceived)) {
+                        // processHeaderPacket 内部会转换状态并发送响应
+                    }
+                } else {
+                    FTS_ERROR("Unexpected packet type in ReceivingHeader: %d", packetType);
+                    sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                }
+                break;
+
+            case TransferState::ReceivingData:
+                if (packetType == static_cast<uint8_t>(PacketType::Data)) {
+                    // Data 包校验成功: 递增序号
+                    _expectedPacketIndex++;
+
+                    if (_expectedPacketIndex % 10 == 0) {
+                        FTS_INFO("Progress: packet %d received", _expectedPacketIndex);
+                    }
+
+                    sendResponse(ResponseStatus::Success, _expectedPacketIndex);
+                } else if (packetType == static_cast<uint8_t>(PacketType::Cancel)) {
+                    // Cancel 包校验成功: 清理状态, 转到 Idle
+                    FTS_INFO("User cancelled transfer");
+                    sendResponse(ResponseStatus::Success, 0);
+                    cleanup();
+                } else {
+                    FTS_ERROR("Unexpected packet type in ReceivingData: %d", packetType);
+                    sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
+                }
+                break;
+
+            default:
+                FTS_ERROR("verifyChecksumAndRespond in unexpected state: %d", (int)_state);
+                sendResponse(ResponseStatus::ServerError, _expectedPacketIndex);
+                break;
+        }
+
+        _packetState = PacketReceiveState::WaitingHeader;
+    }
+
+    bool FileTransferServer::processHeaderPacket(size_t nameLen) {
         if (nameLen >= sizeof(_fileName) - 1) {
             FTS_ERROR("Filename too long: %zu bytes", nameLen);
             sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
             return false;
         }
 
-        // 确保文件名以 '/' 开头 (直接使用指针, 避免临时变量)
-        const char* srcFileName = (const char*)(data + 6);
-        if (srcFileName[0] == '/') {
-            memcpy(_fileName, srcFileName, nameLen);
-            _fileName[nameLen] = '\0';
-        } else {
-            _fileName[0] = '/';
-            memcpy(_fileName + 1, srcFileName, nameLen);
-            _fileName[nameLen + 1] = '\0';
+        // 规范化文件名: 去除前导斜杠, 然后添加单个斜杠
+        // 直接操作 _fileName 成员变量
+
+        // 1. 找到第一个非斜杠字符的位置
+        size_t startPos = 0;
+        while (startPos < nameLen && _fileName[startPos] == '/') {
+            startPos++;
         }
 
-        // 检查 SD 卡状态
+        // 2. 计算实际文件名长度
+        size_t actualLen = nameLen - startPos;
+        if (startPos > 0 && actualLen > 0) {
+            memmove(_fileName + 1, _fileName + startPos, actualLen);
+        } else if (startPos == 0 && actualLen > 0) {
+            memmove(_fileName + 1, _fileName, actualLen);
+        }
+
+        // 3. 添加前导斜杠并终止字符串
+        _fileName[0] = '/';
+        _fileName[actualLen + 1] = '\0';
+
         SDState sdState = get_sd_state(true);
         if (sdState != SDState::Idle) {
             if (sdState == SDState::NotPresent) {
@@ -336,7 +579,6 @@ namespace WebUI {
 #endif
         }
 
-        // 如果未跳过写入, 则创建文件
         if (!_skipSDWrite) {
             _uploadFile = SD.open(_fileName, FILE_WRITE);
             if (!_uploadFile) {
@@ -350,67 +592,16 @@ namespace WebUI {
             }
 
             if (!_skipSDWrite) {
-                set_sd_state(SDState::Busy);
+                set_sd_state(SDState::BusyUploading);
             }
         }
 
-        _state               = TransferState::ReceivingData;
+        _state = TransferState::ReceivingData;
         _expectedPacketIndex = 1;
-        _lastActivityTime    = millis();
-
-        FTS_INFO("Receiving file: %s", _fileName);
-        sendResponse(ResponseStatus::Success, 1);  // 请求第一个数据包
-        return true;
-    }
-
-    bool FileTransferServer::processDataPacket(const uint8_t* data, uint16_t len) {
-        // 提取包序号
-        uint16_t packetIndex = (data[4] << 8) | data[5];
-
-        // 验证序号
-        if (packetIndex != _expectedPacketIndex) {
-            // 序号不匹配, 请求正确的包, 丢弃当前包
-            FTS_WARN("Packet index mismatch: expected %d, got %d", _expectedPacketIndex, packetIndex);
-            sendResponse(ResponseStatus::Success, _expectedPacketIndex);
-            return false;
-        }
-
-        // 提取数据内容
-        // 包格式: [0xAB][0x02][LEN_H][LEN_L][IDX_H][IDX_L][data][CHK_H][CHK_L]
-        size_t         dataLen = len - 8;  // 排除头部(6) + 校验和(2)
-        const uint8_t* payload = data + 6;
-
-        // 累加理论写入字节数 (无论是否跳过写入) 
-        _totalBytesWritten += dataLen;
-
-        // 如果未跳过写入, 则写入 SD 卡
-        if (!_skipSDWrite) {
-            // 安全检查: 确保文件已打开
-            if (!_uploadFile) {
-                FTS_ERROR("File not open");
-                sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
-                return false;
-            }
-
-            // 写入 SD 卡 (流式写入)
-            size_t written = _uploadFile.write(payload, dataLen);
-            if (written != dataLen) {
-                FTS_ERROR("SD write failed: wrote %zu/%zu bytes", written, dataLen);
-                sendResponse(ResponseStatus::ProtocolError, _expectedPacketIndex);
-                return false;
-            }
-        }
-
-        _expectedPacketIndex++;
         _lastActivityTime = millis();
 
-        // 添加进度日志 (每10个包)
-        if (_expectedPacketIndex % 10 == 0) {
-            FTS_INFO("Progress: packet %d received", _expectedPacketIndex);
-        }
-
-        // 发送 ACK, 请求下一个包
-        sendResponse(ResponseStatus::Success, _expectedPacketIndex);
+        FTS_INFO("Receiving file: %s", _fileName);
+        sendResponse(ResponseStatus::Success, 1);
         return true;
     }
 
@@ -450,20 +641,6 @@ namespace WebUI {
         }
     }
 
-    bool FileTransferServer::verifyChecksum(const uint8_t* data, uint16_t len) {
-        // 计算校验和 (累加除了最后 2 字节之外的所有字节)
-        uint32_t sum = 0;
-        for (uint16_t i = 0; i < len - 2; i++) {
-            sum += data[i];
-        }
-        uint16_t calculated = (uint16_t)(sum & 0xFFFF);
-
-        // 提取接收到的校验和
-        uint16_t received = (data[len - 2] << 8) | data[len - 1];
-
-        return calculated == received;
-    }
-
     void FileTransferServer::cleanup() {
         // 1. 关闭文件并输出统计日志
         int packets = (int)_expectedPacketIndex - 1;
@@ -474,6 +651,10 @@ namespace WebUI {
             FTS_INFO("File closed: %s, packets=%d, written=%zu, size=%zu",
                 _fileName, packets, _totalBytesWritten, fileSize);
         } else if (_fileName[0] != '\0') {
+            if (packets == -1) {
+                _fileName[0] = '/';
+                _fileName[1] = '\0';
+            }
             FTS_INFO("File closed (no write): %s, packets=%d, written=%zu",
                 _fileName, packets, _totalBytesWritten);
         }
@@ -485,22 +666,13 @@ namespace WebUI {
         }
 
         // 3. 不再主动断开客户端连接, 让客户端自己断开
+        // 如果已经断开连接, 那 `_transferClient` 会直接判断为空, 也不知道是哪里赋值清空的
         if (_transferClient && _transferClient.connected()) {
             FTS_INFO("Client connection preserved");
-        } else {
-            FTS_INFO("Client already disconnected");
         }
 
-        // 4. 重置接收缓冲区长度 (缓冲区本身是静态的, 不需要释放)
-        _rxBufferSize = 0;
-
-        // 5. 重置所有状态变量
-        _state               = TransferState::Idle;
-        _fileName[0]         = '\0';
-        _expectedPacketIndex = 0;
-        _lastActivityTime    = 0;
-        _skipSDWrite         = false;
-        _totalBytesWritten   = 0;
+        // 4. 重置所有状态变量
+        resetState();
     }
 
     FileTransferServer::~FileTransferServer() {

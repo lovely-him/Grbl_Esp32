@@ -158,6 +158,15 @@ void protocol_main_loop() {
         char*   line;
         for (client = 0; client < CLIENT_COUNT; client++) {
             while ((c = client_read(client)) != -1) {
+#ifdef ENABLE_PROTOCOL_DEBUG_LOG
+                // [DEBUG] 打印从缓冲区读取的字符
+                if (c == '$' || c == 'H') {
+                    char debug_msg[64];
+                    snprintf(debug_msg, sizeof(debug_msg), "[MSG:Protocol: Read char '%c' from client %d]\r\n", c, client);
+                    grbl_send(CLIENT_SERIAL, debug_msg);
+                }
+#endif
+
                 Error res = add_char_to_line(c, client);
                 switch (res) {
                     case Error::Ok:
@@ -168,6 +177,12 @@ void protocol_main_loop() {
                             return;  // Bail to calling function upon system abort
                         }
                         line = client_lines[client].buffer;
+#ifdef ENABLE_PROTOCOL_DEBUG_LOG
+                        // [DEBUG] 打印接收到的完整命令行
+                        char debug_msg[128];
+                        snprintf(debug_msg, sizeof(debug_msg), "[MSG:Protocol: Executing line from client %d: %s]\r\n", client, line);
+                        grbl_send(CLIENT_SERIAL, debug_msg);
+#endif
 #ifdef REPORT_ECHO_RAW_LINE_RECEIVED
                         report_echo_line_received(line, client);
 #endif

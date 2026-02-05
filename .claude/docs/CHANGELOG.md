@@ -9,6 +9,46 @@
 
 ---
 
+## 2026-02-05
+
+### 优化改进 (Optimizations)
+- opt(wifi): 优化 10 秒长按 WiFi 重置功能
+  - 直接操作 NVS 设置 WiFi 模式为 AP
+  - 使用 ESP.restart() 替代命令系统重启
+  - 提高重置可靠性, 避免依赖指令系统
+
+### 重构 (Refactoring)
+- refactor(file_transfer): 重构文件传输服务器数据包处理逻辑
+  - 改用流式处理替代固定 buffer 累积
+  - 优化状态机, 支持跨 MTU 包的数据包解析
+  - 添加详细的连接/断开日志
+  - 提高传输稳定性和内存使用效率
+- refactor(safety): 修复自动归零重复触发问题
+  - 添加静态标志位防止重复执行
+  - 优化安全监控任务逻辑
+
+### 文档更新 (Documentation)
+- docs: 新增 WiFi 网络服务测试工具集
+  - 7 个 Python 测试脚本 (HTTP, WebSocket, Telnet, File Transfer, mDNS, SSDP)
+  - 一键测试所有服务的集成脚本
+  - 详细的使用说明和示例输出
+- docs: 新增网络服务完全指南
+  - 7 大网络服务详解 (HTTP, WebSocket, Telnet, File Transfer, mDNS, SSDP, OTA)
+  - 服务架构、端口配置、使用场景
+  - 故障排查和最佳实践
+- docs: 新增 SD 卡状态管理与 error61 问题排查文档
+  - SD 卡状态管理机制详解
+  - error61 问题根因分析
+  - 解决方案和预防措施
+
+### 其他变更 (Others)
+- style: 修复全项目中文标点符号
+  - 修复 231 个文件中的中文标点符号
+  - 统一使用英文标点符号 (逗号, 句号, 冒号等)
+  - 提高代码可读性和规范性
+
+---
+
 ## 2026-02-03
 
 ### Bug 修复 (Fixes)

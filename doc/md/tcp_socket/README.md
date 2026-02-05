@@ -49,7 +49,7 @@ Grbl_Esp32 需要通过 WiFi 将 G-code 文件上传到 ESP32 的 SD 卡，以�
 doc/md/tcp_socket/
 ├── README.md                    # 本文档
 ├── tcp_client.py                # Python 测试客户端（协议实现）
-├── tcp_auto_test.py             # 自动化测试脚本（13 个测试用例）
+├── tcp_auto_test.py             # 自动化测试脚本（14 个测试用例）
 ├── test_config.json             # 测试配置（IP、端口、超时等）
 ├── verify_checksum.py           # 校验和验证工具（协议调试）
 └── ReferenceCode/               # 参考代码（原始实现）
@@ -100,18 +100,19 @@ Grbl_Esp32/src/WebUI/
 
 ```json
 {
-  "device": {
-    "serial_port": "COM3",        // 串口号
-    "baudrate": 115200
-  },
   "server": {
     "ip": "192.168.8.177",        // ESP32 的 IP 地址
-    "port": 8081,
-    "timeout": 20
+    "port": 8081,                 // TCP Socket 端口
+    "timeout": 20,
+    "http_port": 80               // HTTP 端口
   },
-  "test": {
-    "upload_firmware": false,      // 是否自动烧录固件
-    "stop_on_failure": true        // 遇到失败是否停止
+  "http_command": {                // HTTP 命令配置
+    "enabled": true,               // 是否启用 HTTP 命令测试
+    "url": "http://192.168.8.177/command",  // HTTP 接口 URL
+    "command": "$H",               // 默认命令（归零）
+    "timeout": 30,                 // HTTP 请求超时（秒）
+    "delay_after_upload": 1.0,     // 文件传输后延迟（秒）
+    "auto_send_after_upload": false // 是否在每次文件传输后自动发送
   }
 }
 ```
@@ -133,7 +134,7 @@ python-runner doc/md/tcp_socket/tcp_auto_test.py
 
 ## 测试脚本
 
-当前包含 2 个测试脚本：
+当前包含 1 个测试脚本：
 
 ### 1. tcp_auto_test.py - 功能测试
 测试基本功能和不同文件大小：
@@ -141,12 +142,51 @@ python-runner doc/md/tcp_socket/tcp_auto_test.py
 - 1KB 文件传输
 - 4KB 文件传输
 - 8KB 文件传输
+- 16KB 文件传输
+- 32KB 文件传输（单包最大）
+- 100KB 文件传输（多包）
+- 10MB 文件传输（大文件压力测试）
+- 校验和错误处理
+- 无效魔术字节处理
+- 超大包处理
+- 不完整包处理
+- 取消传输
+- HTTP 命令接口（测试 Grbl HTTP 接口）
 
-### 2. tcp_heavy_load_test.py - 压力测试
-测试大文件传输的稳定性和性能：
-- 10MB 文件
-- 连续传输 10 次
-- 每次使用独立连接
+#### HTTP 命令测试
+
+HTTP 命令测试用于验证文件传输后发送 Grbl 命令的功能，常见应用场景：
+- 文件上传后自动发送 `$H` 归零命令
+- 文件上传后发送 `$X` 解除报警
+- 测试 HTTP 接口的连通性和响应
+
+**配置选项**:
+- `enabled`: 是否启用 HTTP 命令测试
+- `url`: HTTP 接口 URL（默认 `http://192.168.8.177/command`）
+- `command`: 要发送的 Grbl 命令（如 `$H`, `$X`, `?`）
+- `timeout`: HTTP 请求超时时间（秒，建议 30 秒）
+- `delay_after_upload`: 文件传输完成后延迟时间（秒）
+- `auto_send_after_upload`: 是否在每次文件传输后自动发送命令
+
+**命令行参数**:
+```bash
+# 启用文件传输后自动发送 HTTP 命令
+python tcp_auto_test.py --enable-http-after-upload
+
+# 禁用文件传输后的 HTTP 命令
+python tcp_auto_test.py --disable-http-after-upload
+
+# 循环测试 HTTP 命令（10 次，间隔 1 秒）
+python tcp_auto_test.py -l http -c 10 -i 1000
+
+# 循环测试文件传输 + HTTP 命令
+python tcp_auto_test.py -l 1kb -c 5 --enable-http-after-upload
+```
+
+**注意事项**:
+- `$H` 归零命令可能需要 5-30 秒完成（取决于机器尺寸）
+- HTTP 请求失败只记录警告，不影响测试结果
+- 建议在循环测试时设置足够的间隔时间（≥ 5 秒）
 
 ## 测试前准备
 
@@ -197,10 +237,39 @@ TCP Socket 文件传输 - 自动化测试
 [PASS] 100KB 文件传输
 [PASS] 校验和错误处理
 [PASS] 取消传输
+[PASS] HTTP 命令接口
 
-总计: 5/5 通过
+总计: 6/6 通过
 
 [SUCCESS] 所有测试通过！
+```
+
+#### HTTP 命令测试示例输出
+
+```
+======================================================================
+测试 14: HTTP 命令接口
+======================================================================
+[INFO] 发送 HTTP 命令: $H
+[INFO] URL: http://192.168.8.177/command
+[PASS] HTTP 命令成功, 状态码: 200
+[INFO] 响应内容: ok
+```
+
+#### 文件传输后自动发送 HTTP 命令示例
+
+```
+======================================================================
+测试 1: 小文件传输 (Hello World)
+======================================================================
+[INFO] 发送文件信息: test.txt
+[INFO] 开始传输 11 字节，共 1 个数据包
+[INFO] 数据包 1/1 已发送
+[INFO] 文件传输完成
+[PASS] 小文件传输成功
+[INFO] 等待 1.0 秒后发送 HTTP 命令...
+[INFO] 发送 HTTP 命令: $H
+[INFO] HTTP 命令成功
 ```
 
 ## 故障排查
@@ -237,8 +306,7 @@ TCP Socket 文件传输 - 自动化测试
 ## 文件说明
 
 - `tcp_client.py` - TCP 客户端库，实现协议通信
-- `tcp_auto_test.py` - 功能测试脚本（小文件：Hello World → 8KB）
-- `tcp_heavy_load_test.py` - 压力测试脚本（大文件：10MB × 10次）
+- `tcp_auto_test.py` - 功能测试脚本
 - `test_config.json` - 测试配置文件
 - `verify_checksum.py` - 校验和验证工具（协议调试）
 - `tcp_client.dart` - Dart 客户端参考实现

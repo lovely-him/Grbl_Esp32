@@ -77,6 +77,19 @@ namespace WebUI {
     }
 
     void Telnet_Server::clearClients() {
+#ifdef ENABLE_TELNET_CLIENT_LOG
+        static bool _telnetClients_state[MAX_TLNT_CLIENTS] = {false};
+        for (uint8_t i = 0; i < MAX_TLNT_CLIENTS; i++) {
+            if (_telnetClients_state[i] && !_telnetClients[i]) {
+                // 特殊 API, 断开连接时整个对象本身就已经为空了
+                char disconnectMsg[128];
+                sprintf(disconnectMsg, "[MSG:TELNET Client(%d) disconnected]\r\n", i);
+                grbl_send(CLIENT_SERIAL, disconnectMsg);
+                _telnetClients_state[i] = false;
+            }
+        }
+#endif
+
         //check if there are any new clients
         if (_telnetserver->hasClient()) {
             uint8_t i;
@@ -90,6 +103,16 @@ namespace WebUI {
                         _telnetClients[i].stop();
                     }
                     _telnetClients[i] = _telnetserver->available();
+#ifdef ENABLE_TELNET_CLIENT_LOG
+                    if (!_telnetClients_state[i] && _telnetClients[i]) {
+                        IPAddress clientIP = _telnetClients[i].remoteIP();
+                        char msg[128];
+                        sprintf(msg, "[MSG:TELNET Client(%d) connected from %d.%d.%d.%d]\r\n",
+                                i, clientIP[0], clientIP[1], clientIP[2], clientIP[3]);
+                        grbl_send(CLIENT_SERIAL, msg);
+                        _telnetClients_state[i] = true;
+                    }
+#endif
                     break;
                 }
             }

@@ -1,15 +1,16 @@
 {
-  "device": {
-    "serial_port": "COM3",
-    "baudrate": 115200
-  },
   "server": {
     "ip": "192.168.8.177",
     "port": 8081,
-    "timeout": 20
+    "timeout": 20,
+    "http_port": 80
   },
-  "test": {
-    "upload_firmware": false,
-    "stop_on_failure": false
+  "http_command": {
+    "enabled": true,
+    "url": "http://192.168.8.177/command",
+    "command": "$H",
+    "timeout": 30,
+    "delay_after_upload": 0.0,
+    "auto_send_after_upload": true
   }
 }
