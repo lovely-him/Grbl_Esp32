@@ -24,3 +24,4 @@ Grbl_Esp32.ino.cpp
 .claude/settings.json
 .claude/settings.local.json
 setup_claude_code_gitbash.swp
+doc/log/

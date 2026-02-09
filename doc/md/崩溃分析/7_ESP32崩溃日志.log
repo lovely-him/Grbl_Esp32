@@ -1,0 +1,135 @@
+[MSG:Restart ongoing]
+ok
+ok
+ets Jul 29 2019 12:21:46
+
+rst:0xc (SW_CPU_RESET),boot:0x17 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:1
+load:0x3fff0018,len:4
+load:0x3fff001c,len:1216
+ho 0 tail 12 room 4
+load:0x40078000,len:9720
+ho 0 tail 12 room 4
+load:0x40080400,len:6352
+entry 0x400806b8
+
+[MSG:Grbl_ESP32 Ver 1.3a Date 20211103]
+[MSG:Compiled with ESP32 SDK:v3.2.3-14-gd3e562907]
+[MSG:Using machine:Genmitsu_Kiosk_V07_HIM]
+[MSG:Init Motors]
+[MSG:X  Axis Standard Stepper Step:GPIO(33) Dir:GPIO(32) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Y  Axis Standard Stepper Step:GPIO(26) Dir:GPIO(25) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Z  Axis Standard Stepper Step:GPIO(5) Dir:GPIO(18) Disable:GPIO(27) Limits(0.000,1000.000)]
+[MSG:Axis count 3]
+[MSG:RMT Steps]
+[I][machine_init:1035] Wainlux K11 HIM Custom Init (Full Rewrite)
+[I][machine_init:1036] Compiled: Feb  9 2026 at 16:27:16
+[I][machine_init:1037] ESP32 SDK: v3.2.3-14-gd3e562907
+[I][machine_init:1042] Button pin: 19 | Door pin: 17
+[MSG:User Analog Output:0 on Pin:GPIO(23) Freq:25000Hz]
+[MSG:User Analog Output:1 on Pin:GPIO(16) Freq:25000Hz]
+[I][init_tilt_sensor:313] I2C mutex created
+[I][init_tilt_sensor:324] I2C bus initialized: 100kHz (SDA=22, SCL=4)
+[I][init_tilt_sensor:346] QMI8658 initialized (SDA=22, SCL=4)
+[I][check_tilt_sensor:439] 1.5° (Norm: X=21 Y=-17 Z=-1000 mg, Samples=16/16)
+[I][machine_init:1059] Custom tasks created: Button, Safety, LED+Fan
+[MSG:Laser spindle on Pin:GPIO(21), Enbl:None, Freq:5000Hz, Res:13bits Laser mode:On]
+[I][update_led_auto_control:861] State: Idle -> Alarm
+[MSG:Fixed MAC: 88:57:21:C4:E1:84]
+[MSG:Connecting MT4000 (attempt 1)]
+[MSG:Start DHCP with hostname: grblesp]
+[MSG:Start DHCP with hostname: grblesp]
+[MSG:Connecting.]
+[MSG:Connecting..]
+[MSG:Connecting...]
+[MSG:Connecting....]
+[MSG:Connected with 192.168.137.46]
+[MSG:Start mDNS with hostname:http://grblesp.local/]
+[MSG:SSDP Started]
+[MSG:HTTP Started]
+[MSG:TELNET Started 8080]
+[MSG:Server started on port 8081 (stream buffer: 1536 bytes)]
+[MSG:X  Axis limit switch on pin GPIO(36)]
+[MSG:Y  Axis limit switch on pin GPIO(35)]
+
+Grbl 1.3a ['$' for help]
+[MSG:'$H'|'$X' to unlock]
+[I][safety_monitor_task:1018] Auto-homing triggered (state=Alarm)
+[I][update_led_auto_control:861] State: Alarm -> Homing
+[I][update_led_auto_control:861] State: Homing -> Idle
+[I][update_fan_auto_control:921] Fan OFF (cooldown complete)
+[W][esp32-hal-i2c.c:1411] i2cCheckLineState(): invalid state sda(22)=0, scl(4)=1
+E (362174) task_wdt: Task watchdog got triggered. The following tasks did not reset the watchdog in time:
+E (362174) task_wdt:  - IDLE0 (CPU 0)
+E (362174) task_wdt: Tasks currently running:
+E (362174) task_wdt: CPU 0: wifi
+E (362174) task_wdt: CPU 1: loopTask
+E (362174) task_wdt: Aborting.
+abort() was called at PC 0x400feeb8 on core 0
+
+Backtrace: 0x4008f3cc:0x3ffbe170 0x4008f5fd:0x3ffbe190 0x400feeb8:0x3ffbe1b0 0x400865d5:0x3ffbe1d0 0x400ff4ff:0x3ffd3040 0x40089be2:0x3ffd3060 0x40199697:0x3ffd30a0 0x401a104e:0x3ffd30c0 0x40092581:0x3ffd3140 0x4008bae1:0x3ffd3180
+
+Rebooting...
+ets Jul 29 2019 12:21:46
+
+rst:0xc (SW_CPU_RESET),boot:0x17 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:1
+load:0x3fff0018,len:4
+load:0x3fff001c,len:1216
+ho 0 tail 12 room 4
+load:0x40078000,len:9720
+ho 0 tail 12 room 4
+load:0x40080400,len:6352
+entry 0x400806b8
+
+[MSG:Grbl_ESP32 Ver 1.3a Date 20211103]
+[MSG:Compiled with ESP32 SDK:v3.2.3-14-gd3e562907]
+[MSG:Using machine:Genmitsu_Kiosk_V07_HIM]
+[MSG:Init Motors]
+[MSG:X  Axis Standard Stepper Step:GPIO(33) Dir:GPIO(32) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Y  Axis Standard Stepper Step:GPIO(26) Dir:GPIO(25) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Z  Axis Standard Stepper Step:GPIO(5) Dir:GPIO(18) Disable:GPIO(27) Limits(0.000,1000.000)]
+[MSG:Axis count 3]
+[MSG:RMT Steps]
+[I][machine_init:1035] Wainlux K11 HIM Custom Init (Full Rewrite)
+[I][machine_init:1036] Compiled: Feb  9 2026 at 16:27:16
+[I][machine_init:1037] ESP32 SDK: v3.2.3-14-gd3e562907
+[I][machine_init:1042] Button pin: 19 | Door pin: 17
+[MSG:User Analog Output:0 on Pin:GPIO(23) Freq:25000Hz]
+[MSG:User Analog Output:1 on Pin:GPIO(16) Freq:25000Hz]
+[I][init_tilt_sensor:313] I2C mutex created
+[I][init_tilt_sensor:324] I2C bus initialized: 100kHz (SDA=22, SCL=4)
+[I][init_tilt_sensor:346] QMI8658 initialized (SDA=22, SCL=4)
+[I][check_tilt_sensor:439] 1.4° (Norm: X=19 Y=-16 Z=-1000 mg, Samples=16/16)
+[I][machine_init:1059] Custom tasks created: Button, Safety, LED+Fan
+[MSG:Laser spindle on Pin:GPIO(21), Enbl:None, Freq:5000Hz, Res:13bits Laser mode:On]
+[I][update_led_auto_control:861] State: Idle -> Alarm
+[MSG:Fixed MAC: 88:57:21:C4:E1:84]
+[MSG:Connecting MT4000 (attempt 1)]
+[MSG:Start DHCP with hostname: grblesp]
+[MSG:Start DHCP with hostname: grblesp]
+[MSG:Connecting.]
+[MSG:Connecting..]
+[MSG:Connecting...]
+[MSG:Connecting....]
+[MSG:Connecting.]
+[MSG:Connecting..]
+[MSG:Connected with 192.168.137.46]
+[E][ESPmDNS.cpp:72] begin(): Failed setting MDNS hostname
+[MSG:Cannot start mDNS]
+[MSG:SSDP Started]
+[MSG:HTTP Started]
+[MSG:TELNET Started 8080]
+[MSG:Server started on port 8081 (stream buffer: 1536 bytes)]
+[MSG:X  Axis limit switch on pin GPIO(36)]
+[MSG:Y  Axis limit switch on pin GPIO(35)]
+
+Grbl 1.3a ['$' for help]
+[MSG:'$H'|'$X' to unlock]
+[I][safety_monitor_task:1018] Auto-homing triggered (state=Alarm)
+[I][update_led_auto_control:861] State: Alarm -> Homing
+[I][update_led_auto_control:861] State: Homing -> Idle

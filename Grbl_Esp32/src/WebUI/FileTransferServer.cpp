@@ -160,11 +160,13 @@ namespace WebUI {
                 _packetState = PacketReceiveState::WaitingHeader;
                 _headerBytesReceived = 0;
                 _lastActivityTime = millis();
+#ifdef ENABLE_FILETRANSFER_CLIENT_LOG
                 IPAddress clientIP = _transferClient.remoteIP();
                 char msg[128];
                 sprintf(msg, "[MSG:FileTransfer Client(0) connected from %d.%d.%d.%d]\r\n",
                         clientIP[0], clientIP[1], clientIP[2], clientIP[3]);
                 grbl_send(CLIENT_SERIAL, msg);
+#endif
             }
         }
 
@@ -174,7 +176,9 @@ namespace WebUI {
         } else {
             // 客户端断开连接, 统一处理 (不区分状态)
             if (_state != TransferState::Idle) {
+#ifdef ENABLE_FILETRANSFER_CLIENT_LOG
                 grbl_send(CLIENT_SERIAL, "[MSG:FileTransfer Client(0) disconnected]\r\n");
+#endif
                 cleanup();
             }
         }

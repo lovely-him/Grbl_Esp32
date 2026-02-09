@@ -132,10 +132,12 @@
 #define MACHINE_NAME            "Genmitsu_Kiosk_V07_HIM"
 #define MACHINE_NAME_C          "Genmitsu_Kiosk_C_V07_HIM"
 
+// STA 模式连接配置 (连接到路由器)
 #define CONNECT_TO_SSID         "MT3000"
 #define SSID_PASSWORD           "88888888"
 
-#define CONNECT_TO_AP_SSID      MACHINE_NAME
+// AP 模式创建配置 (创建热点)
+#define CONNECT_TO_AP_SSID      "Genmitsu_Kiosk"
 #define AP_SSID_PASSWORD        "12345678"
 
 // ============================================================================
@@ -294,9 +296,6 @@
 #define DEFAULT_X_HOMING_MPOS -2
 #define DEFAULT_Y_HOMING_MPOS -2
 
-#define AP_SSID           "Genmitsu_Kiosk"
-#define AP_PASSWORD       "12345678"
-
 // ============================================================================
 // SD 卡 SPI 引脚配置
 // ============================================================================
@@ -332,6 +331,12 @@
 // 注释此行可禁用调试日志 (减少串口输出, 提高性能)
 // #define ENABLE_PROTOCOL_DEBUG_LOG
 
+// HTTP 性能日志
+// 启用后会记录每个 HTTP 请求的响应时间 (微秒级精度)
+// 用于性能分析和调试, 输出格式: [HTTP] GET /: 1234 us (1.23 ms)
+// 注释此行可禁用日志 (减少串口输出, 提高性能)
+// #define ENABLE_HTTP_PERFORMANCE_LOG
+
 // Telnet 客户端连接日志
 // 启用后会打印 Telnet 客户端的连接和断开信息
 // 注释此行可禁用日志 (减少串口输出)
@@ -341,6 +346,11 @@
 // 启用后会打印 WebSocket 客户端的连接和断开信息
 // 注释此行可禁用日志 (减少串口输出)
 #define ENABLE_WEBSOCKET_CLIENT_LOG
+
+// FileTransfer 客户端连接日志
+// 启用后会打印 FileTransfer 客户端的连接和断开信息
+// 注释此行可禁用日志 (减少串口输出)
+#define ENABLE_FILETRANSFER_CLIENT_LOG
 
 // ============================================================================
 // 安全功能配置

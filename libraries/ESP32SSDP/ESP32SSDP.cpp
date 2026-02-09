@@ -254,7 +254,7 @@ void SSDPClass::_update(){
     try {
       nbBytes= _server->parsePacket();
     } catch (const std::bad_alloc& e) {
-      log_n("Memory allocation failed in parsePacket(): %s", e.what());
+      log_e("Memory allocation failed in parsePacket(): %s", e.what());
       return;  // 安全返回, 不崩溃
     }
 
@@ -272,7 +272,7 @@ void SSDPClass::_update(){
     try {
       packetBuffer = new char[nbBytes +1];
     } catch (const std::bad_alloc& e) {
-      log_n("Memory allocation failed for packet buffer (%d bytes): %s", nbBytes+1, e.what());
+      log_e("Memory allocation failed for packet buffer (%d bytes): %s", nbBytes+1, e.what());
       return;  // 安全返回
     }
 

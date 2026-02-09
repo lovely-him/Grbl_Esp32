@@ -564,8 +564,16 @@ void handle_short_press() {
             break;
 
         case State::SafetyDoor:
-            HIM_LOG_INFO("Safety door is open, please close it");
-            WebUI::inputBuffer.push("?\r");
+            if (!sys.suspend.bit.safetyDoorAjar) {
+                // 门已关闭, 可以恢复
+                HIM_LOG_INFO("Resume from safety door");
+                sys_rt_exec_state.bit.cycleStart = true;
+                WebUI::inputBuffer.push("$H\r");
+            } else {
+                // 门还开着
+                HIM_LOG_INFO("Safety door is open, please close it first");
+                WebUI::inputBuffer.push("?\r");
+            }
             break;
 
         case State::Sleep:
@@ -609,7 +617,7 @@ void handle_long_press_3s() {
 void handle_long_press_10s() {
     HIM_LOG_INFO("Long press 10s - Reset WiFi to AP mode");
 
-    // 1. 直接修改WiFi模式设置为AP (保存到NVS) 
+    // 1. 直接修改WiFi模式设置为AP (保存到NVS)
     if (WebUI::wifi_radio_mode) {
         char ap_mode[] = "AP";  // setStringValue 需要 char* 而不是 const char*
         Error err = WebUI::wifi_radio_mode->setStringValue(ap_mode);
@@ -625,7 +633,7 @@ void handle_long_press_10s() {
     // 2. 等待NVS写入完成
     vTaskDelay(pdMS_TO_TICKS(100));
 
-    // 3. 直接重启ESP32 (不依赖指令系统) 
+    // 3. 直接重启ESP32 (不依赖指令系统)
     HIM_LOG_INFO("Restarting ESP32 in 500ms...");
     vTaskDelay(pdMS_TO_TICKS(500));  // 给日志输出时间
 
@@ -952,7 +960,6 @@ void safety_monitor_task(void* parameter) {
 
     bool last_door_state = false;
     bool last_tilt_state = false;
-    State state_before_safety_door = State::Idle;
     static bool _auto_homing_requested = false;
 
     while (true) {
@@ -978,64 +985,27 @@ void safety_monitor_task(void* parameter) {
             last_tilt_state = tilt_now;
         }
 
-        // 安全门触发处理
-        if (door_open_now || tilt_now) {
-            switch (sys.state) {
-                case State::Idle:
-                case State::CheckMode:
-                case State::Homing:
-                case State::Cycle:
-                case State::Hold:
-                case State::Jog:
-                    HIM_LOG_INFO("Safety door opened (was in %s state)", sys_state_names[(int)sys.state]);
-                    state_before_safety_door = sys.state;
-                    sys_rt_exec_state.bit.safetyDoor = true;
-                    break;
+        bool safety_condition = door_open_now || tilt_now;
 
-                case State::Alarm:
-                case State::SafetyDoor:
-                case State::Sleep:
-                    break;
+        // 安全门触发处理
+        if (safety_condition) {
+            // 设置标志 (让状态报告显示 Door:1)
+            sys.suspend.bit.safetyDoorAjar = true;
+
+            // 触发安全门 (只在非 SafetyDoor 和非 Alarm 状态触发)
+            if (sys.state != State::SafetyDoor && sys.state != State::Alarm) {
+                HIM_LOG_INFO("Safety door triggered (was in %s state)", sys_state_names[(int)sys.state]);
+                sys_rt_exec_state.bit.safetyDoor = true;
             }
         } else {
-            // 安全门关闭, 恢复状态
-            switch (sys.state) {
-                case State::SafetyDoor:
-                    if (!sys.suspend.bit.safetyDoorAjar) {
-                        HIM_LOG_INFO("Safety door closed (was in %s before)", sys_state_names[(int)state_before_safety_door]);
-                        sys.suspend.bit.safetyDoorAjar = false;
-
-                        if (state_before_safety_door == State::Hold) {
-                            sys.suspend.value = 0;
-                            sys.suspend.bit.holdComplete = true;
-                            sys.state = State::Hold;
-                            HIM_LOG_INFO("Returned to Hold state (was paused before door opened)");
-                        } else if (state_before_safety_door == State::Cycle || state_before_safety_door == State::Jog) {
-                            sys.suspend.value = 0;
-                            sys.suspend.bit.holdComplete = true;
-                            sys.state = State::Hold;
-                            HIM_LOG_INFO("Entered Hold state (was moving before, press button to resume)");
-                        } else {
-                            sys.suspend.value = 0;
-                            sys.state = state_before_safety_door;
-                            HIM_LOG_INFO("Returned to %s state", sys_state_names[(int)state_before_safety_door]);
-                        }
-                        state_before_safety_door = State::Idle;
-                    }
-                    break;
-
-                case State::Idle:
-                case State::Alarm:
-                case State::CheckMode:
-                case State::Homing:
-                case State::Cycle:
-                case State::Hold:
-                case State::Jog:
-                case State::Sleep:
-                    break;
+            // 安全门关闭, 清除标志 (让状态报告显示 Door:0)
+            if (sys.state == State::SafetyDoor && sys.suspend.bit.safetyDoorAjar) {
+                sys.suspend.bit.safetyDoorAjar = false;
+                HIM_LOG_INFO("Safety door closed, press button or send ~ to resume");
             }
         }
 
+        // 自动归位逻辑
         if (auto_homing_requested && !_auto_homing_requested) {
             auto_homing_requested = false;
             _auto_homing_requested = true;

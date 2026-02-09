@@ -1,0 +1,44 @@
+
+Rebooting...
+ets Jul 29 2019 12:21:46
+
+rst:0xc (SW_CPU_RESET),boot:0x17 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:1
+load:0x3fff0018,len:4
+load:0x3fff001c,len:1216
+ho 0 tail 12 room 4
+load:0x40078000,len:9720
+ho 0 tail 12 room 4
+load:0x40080400,len:6352
+entry 0x400806b8
+
+[MSG:Grbl_ESP32 Ver 1.3a Date 20211103]
+[MSG:Compiled with ESP32 SDK:v3.2.3-14-gd3e562907]
+[MSG:Using machine:Genmitsu_Kiosk_V07_HIM]
+[MSG:Axis count 3]
+[MSG:RMT Steps]
+[MSG:Init Motors]
+[MSG:X  Axis Standard Stepper Step:GPIO(33) Dir:GPIO(32) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Y  Axis Standard Stepper Step:GPIO(26) Dir:GPIO(25) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Z  Axis Standard Stepper Step:GPIO(5) Dir:GPIO(18) Disable:GPIO(27) Limits(0.000,1000.000)]
+[I][machine_init:1065] Wainlux K11 HIM Custom Init (Full Rewrite)
+[I][machine_init:1066] Compiled: Feb  9 2026 at 09:20:59
+[I][machine_init:1067] ESP32 SDK: v3.2.3-14-gd3e562907
+[I][machine_init:1072] Button pin: 19 | Door pin: 17
+[MSG:User Analog Output:0 on Pin:GPIO(23) Freq:25000Hz]
+[MSG:User Analog Output:1 on Pin:GPIO(16) Freq:25000Hz]
+[I][init_tilt_sensor:313] I2C mutex created
+[I][init_tilt_sensor:324] I2C bus initialized: 100kHz (SDA=22, SCL=4)
+[I][init_tilt_sensor:346] QMI8658 initialized (SDA=22, SCL=4)
+[I][check_tilt_sensor:439] 1.6° (Norm: X=18 Y=-21 Z=-1000 mg, Samples=16/16)
+[I][machine_init:1089] Custom tasks created: Button, Safety, LED+Fan
+[MSG:Laser spindle on Pin:GPIO(21), Enbl:None, Freq:5000Hz, Res:13bits Laser mode:On]
+[I][update_led_auto_control:853] State: Idle -> Alarm
+[E][WiFiUdp.cpp:219] parsePacket(): could not receive data: 9
+assertion "false && "WiFiUDP parsePacket error - check backtrace"" failed: file "C:\Users\admin\.platformio\packages\fr
+[MSamework-arduinoespressif32\libraries\WiFi\src\WiFiUdp.cpp", line 220, function: virtual int WiFiUDP::parsePacket()
+abort() was called at PC 0x4015cbaf on core 1
+
+Backtrace: 0x4008f3cc:0x3ffb3e60 0x4008f5fd:0x3ffb3e80 0x4015cbaf:0x3ffb3ea0 0x400f0413:0x3ffb3ed0 0x400f6c11:0x3ffb3f10 0x400e4081:0x3ffb3f40 0x400ed308:0x3ffb3f80 0x400ed184:0x3ffb3fa0 0x400db723:0x3ffb3fc0 0x4008bae1:0x3ffb3fe0

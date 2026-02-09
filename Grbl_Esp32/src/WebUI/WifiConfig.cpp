@@ -357,9 +357,9 @@ namespace WebUI {
                 uint8_t random_mac[6];
                 memcpy(random_mac, current_mac, 6);
 
-                // 设置本地管理位 (bit 1 of first byte = 1) 
+                // 设置本地管理位 (bit 1 of first byte = 1)
                 random_mac[0] |= 0x02;
-                // 清除多播位 (bit 0 of first byte = 0) 
+                // 清除多播位 (bit 0 of first byte = 0)
                 random_mac[0] &= 0xFE;
 
                 // 随机化后三个字节

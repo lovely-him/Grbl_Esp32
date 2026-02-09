@@ -156,7 +156,9 @@ uint8_t system_check_safety_door_ajar() {
 #ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
     return system_control_get_state().bit.safetyDoor;
 #else
-    return false;  // Input pin not enabled, so just return that it's closed.
+    // If no physical pin is defined, return the current flag state
+    // This allows custom code to manage the safety door state manually
+    return sys.suspend.bit.safetyDoorAjar;
 #endif
 }
 

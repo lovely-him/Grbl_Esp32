@@ -1,0 +1,180 @@
+<Idle|MPos:0.000,0.000,0.000|FS:0,0|WCO:0.000,0.000,0.000>
+<Idle|MPos:0.000,0.000,0.000|FS:0,0|Ov:100,100,100>
+<Idle|MPos:0.000,0.000,0.000|FS:0,0>
+<Idle|MPos:0.000,0.000,0.000|FS:0,0>
+<Idle|MPos:0.000,0.000,0.000|FS:0,0>
+<Idle|MPos:0.000,0.000,0.000|FS:0,0>
+<Idle|MPos:0.000,0.000,0.000|FS:0,0>
+<Idle|MPos:0.000,0.000,0.000|FS:0,0>
+<Idle|MPos:0.000,0.000,0.000|FS:0,0>
+<Idle|MPos:0.000,0.000,0.000|FS:0,0>
+<Idle|MPos:0.000,0.000,0.000|FS:0,0|WCO:0.000,0.000,0.000>
+<Idle|MPos:0.000,0.000,0.000|FS:0,0|Ov:100,100,100>
+[I][safety_monitor_task:967] Door opened (pin: 0)
+[I][safety_monitor_task:990] Safety door opened (was in Idle state)
+[MSG:Check door]
+[I][update_led_auto_control:853] State: Idle -> SafetyDoor
+[I][safety_monitor_task:967] Door closed (pin: 1)
+[I][safety_monitor_task:1005] Safety door closed (was in Idle before)
+[I][safety_monitor_task:1021] Returned to Idle state
+[I][update_led_auto_control:853] State: SafetyDoor -> Idle
+[I][handle_short_press:531] Short press
+[I][preview_boundary:494] Wait Homing complete, Boundary: 100.0 x 100.0 mm (laser preview)
+[I][handle_short_press:531] Short press
+[I][preview_boundary:494] Wait Homing complete, Boundary: 100.0 x 100.0 mm (laser preview)
+<Idle|MPos:0.000,0.000,0.000|FS:0,0|Ov:100,100,100>
+[MSG:Restart ongoing]
+ok
+ok
+[MSG:Restart ongoing]
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+[MSG:Restart ongoing]
+ok
+ok
+[MSG:Restart ongoing]
+ok
+ok
+[MSG:Restart ongoing]
+ok
+ok
+[MSG:Restart ongoing]
+ok
+ok
+[MSG:Restart ongoing]
+ok
+ok
+[MSG:Restart ongoing]
+ok
+ok
+[MSG:Restart ongoing]
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+ok
+0.0.0.0
+ok
+ok
+0.0.0.0
+ok
+ok
+0.0.0.0
+ok
+ok
+0.0.0.0
+ok
+ok
+[I][update_led_auto_control:853] State: Idle -> Homing
+ets Jul 29 2019 12:21:46
+
+rst:0xc (SW_CPU_RESET),boot:0x17 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:1
+load:0x3fff0018,len:4
+load:0x3fff001c,len:1216
+ho 0 tail 12 room 4
+load:0x40078000,len:9720
+ho 0 tail 12 room 4
+load:0x40080400,len:6352
+entry 0x400806b8
+
+[MSG:Grbl_ESP32 Ver 1.3a Date 20211103]
+[MSG:Compiled with ESP32 SDK:v3.2.3-14-gd3e562907]
+[MSG:Using machine:Genmitsu_Kiosk_V07_HIM]
+[MSG:Axis count 3]
+[MSG:RMT Steps]
+Guru Meditation Error: Core  1 panic'ed (LoadProhibited). Exception was unhandled.
+Core 1 register dump:
+PC      : 0x400d6e5f  PS      : 0x00060031  A0      : 0x80082138  A1      : 0x3ffbe780
+A2      : 0x3ffbdb4c  A3      : 0x3ffc14b8  A4      : 0x00000000  A5      : 0x00000000
+A6      : 0x00000000  A7      : 0x00000003  A8      : 0x3ffaf0dc  A9      : 0x00000000
+A10     : 0x00000000  A11     : 0x3ffaf0dc  A12     : 0x8008e98e  A13     : 0x3ffb1e00
+A14     : 0x00000001  A15     : 0x3ffaf0dc  SAR     : 0x00000000  EXCCAUSE: 0x0000001c
+EXCVADDR: 0x00000000  LBEG    : 0x400014fd  LEND    : 0x4000150d  LCOUNT  : 0xfffffffb
+Core 1 was running in ISR context:
+EPC1    : 0x400d6e5f  EPC2    : 0x00000000  EPC3    : 0x00000000  EPC4    : 0x40088c53
+
+Backtrace: 0x400d6e5f:0x3ffbe780 0x40082135:0x3ffbe7a0 0x400865d5:0x3ffbe7d0 0x4000bfed:0x3ffb1e70 0x4008cc5d:0x3ffb1e80 0x40100d2e:0x3ffb1ea0 0x4018be8e:0x3ffb1ee0 0x4008205d:0x3ffb1f10 0x400e017f:0x3ffb1f50 0x400d59d6:0x3ffb1f70 0x400d317b:0x3ffb1f90 0x400fd363:0x3ffb1fb0 0x4008bae1:0x3ffb1fd0
+
+Rebooting...
+ets Jul 29 2019 12:21:46
+
+rst:0xc (SW_CPU_RESET),boot:0x17 (SPI_FAST_FLASH_BOOT)
+configsip: 0, SPIWP:0xee
+clk_drv:0x00,q_drv:0x00,d_drv:0x00,cs0_drv:0x00,hd_drv:0x00,wp_drv:0x00
+mode:DIO, clock div:1
+load:0x3fff0018,len:4
+load:0x3fff001c,len:1216
+ho 0 tail 12 room 4
+load:0x40078000,len:9720
+ho 0 tail 12 room 4
+load:0x40080400,len:6352
+entry 0x400806b8
+
+[MSG:Grbl_ESP32 Ver 1.3a Date 20211103]
+[MSG:Compiled with ESP32 SDK:v3.2.3-14-gd3e562907]
+[MSG:Using machine:Genmitsu_Kiosk_V07_HIM]
+[MSG:Axis count 3]
+[MSG:RMT Steps]
+[MSG:Init Motors]
+[MSG:X  Axis Standard Stepper Step:GPIO(33) Dir:GPIO(32) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Y  Axis Standard Stepper Step:GPIO(26) Dir:GPIO(25) Disable:GPIO(27) Limits(-2.000,98.000)]
+[MSG:Z  Axis Standard Stepper Step:GPIO(5) Dir:GPIO(18) Disable:GPIO(27) Limits(0.000,1000.000)]
+[I][machine_init:1065] Wainlux K11 HIM Custom Init (Full Rewrite)
+[I][machine_init:1066] Compiled: Feb  9 2026 at 09:20:59
+[I][machine_init:1067] ESP32 SDK: v3.2.3-14-gd3e562907
+[I][machine_init:1072] Button pin: 19 | Door pin: 17
+[MSG:User Analog Output:0 on Pin:GPIO(23) Freq:25000Hz]
+[MSG:User Analog Output:1 on Pin:GPIO(16) Freq:25000Hz]
+[I][init_tilt_sensor:313] I2C mutex created
+[I][init_tilt_sensor:324] I2C bus initialized: 100kHz (SDA=22, SCL=4)
+[I][init_tilt_sensor:346] QMI8658 initialized (SDA=22, SCL=4)
+[I][check_tilt_sensor:439] 1.5° (Norm: X=17 Y=-20 Z=-1000 mg, Samples=16/16)
+[I][machine_init:1089] Custom tasks created: Button, Safety, LED+Fan
+[MSG:Laser spindle on Pin:GPIO(21), Enbl:None, Freq:5000Hz, Res:13bits Laser mode:On]
+[I][update_led_auto_control:853] State: Idle -> Alarm
+[MSG:Fixed MAC: 88:57:21:C4:E1:84]
+[MSG:Connecting MT4000 (attempt 1)]
+[MSG:Start DHCP with hostname: grblesp]
+[MSG:Start DHCP with hostname: grblesp]
+[MSG:Connecting.]
+[MSG:Connecting..]
+[MSG:Connecting...]
+[MSG:Connecting....]
+[MSG:Connected with 192.168.137.163]
+[MSG:Start mDNS with hostname:http://grblesp.local/]
+[MSG:SSDP Started]
+[MSG:HTTP Started]
+[MSG:TELNET Started 8080]
+[MSG:Server started on port 8081 (stream buffer: 1536 bytes)]
+[MSG:X  Axis limit switch on pin GPIO(36)]
+[MSG:Y  Axis limit switch on pin GPIO(35)]
+
+Grbl 1.3a ['$' for help]
+[MSG:'$H'|'$X' to unlock]
+[I][safety_monitor_task:1048] Auto-homing triggered (state=Alarm)
+[I][update_led_auto_control:853] State: Alarm -> Homing
+[I][update_led_auto_control:853] State: Homing -> Idle

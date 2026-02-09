@@ -257,7 +257,7 @@ static const uint8_t NHomingLocateCycle = 1;  // Integer (1-128)
 // immediately forces a feed hold and then safely de-energizes the machine. Resuming is blocked until
 // the safety door is re-engaged. When it is, Grbl will re-energize the machine and then resume on the
 // previous tool path, as if nothing happened.
-#define ENABLE_SAFETY_DOOR_INPUT_PIN  // ESP32 Leave this enabled for now .. code for undefined not ready
+// #define ENABLE_SAFETY_DOOR_INPUT_PIN  // ESP32 Leave this enabled for now .. code for undefined not ready
 
 // Inverts select limit pin states based on the following mask. This effects all limit pin functions,
 // such as hard limits and homing. However, this is different from overall invert limits setting.

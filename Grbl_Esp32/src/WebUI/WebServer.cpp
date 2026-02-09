@@ -52,6 +52,7 @@
 namespace WebUI {
     const byte DNS_PORT = 53;
     DNSServer  dnsServer;
+    bool       dnsServerStarted = false;  // 跟踪 DNS 服务器启动状态
 }
 
 #    endif
@@ -163,14 +164,29 @@ namespace WebUI {
 
 #    ifdef ENABLE_CAPTIVE_PORTAL
         if (WiFi.getMode() == WIFI_AP) {
-            // if DNSServer is started with "*" for domain name, it will reply with
-            // provided IP to all DNS request
-            dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
-            grbl_send(CLIENT_ALL, "[MSG:Captive Portal Started]\r\n");
-            _webserver->on("/generate_204", HTTP_ANY, handle_root);
-            _webserver->on("/gconnectivitycheck.gstatic.com", HTTP_ANY, handle_root);
-            //do not forget the / at the end
-            _webserver->on("/fwlink/", HTTP_ANY, handle_root);
+            // 等待 WiFi AP 完全初始化
+            IPAddress apIP = WiFi.softAPIP();
+            int retry = 0;
+            while (apIP == IPAddress(0, 0, 0, 0) && retry < 50) {
+                delay(100);
+                apIP = WiFi.softAPIP();
+                retry++;
+            }
+
+            if (apIP != IPAddress(0, 0, 0, 0)) {
+                // if DNSServer is started with "*" for domain name, it will reply with
+                // provided IP to all DNS request
+                dnsServer.start(DNS_PORT, "*", apIP);
+                dnsServerStarted = true;
+                grbl_send(CLIENT_ALL, "[MSG:Captive Portal Started]\r\n");
+                _webserver->on("/generate_204", HTTP_ANY, handle_root);
+                _webserver->on("/gconnectivitycheck.gstatic.com", HTTP_ANY, handle_root);
+                //do not forget the / at the end
+                _webserver->on("/fwlink/", HTTP_ANY, handle_root);
+            } else {
+                grbl_send(CLIENT_ALL, "[MSG:Captive Portal Failed - AP IP not ready]\r\n");
+                dnsServerStarted = false;
+            }
         }
 #    endif
 
@@ -212,6 +228,13 @@ namespace WebUI {
 
     void Web_Server::end() {
         _setupdone = false;
+#    ifdef ENABLE_CAPTIVE_PORTAL
+        // 停止 DNS 服务器
+        if (dnsServerStarted) {
+            dnsServer.stop();
+            dnsServerStarted = false;
+        }
+#    endif  //ENABLE_CAPTIVE_PORTAL
 #    ifdef ENABLE_SSDP
         SSDP.end();
 #    endif  //ENABLE_SSDP
@@ -242,6 +265,9 @@ namespace WebUI {
     //Root of Webserver/////////////////////////////////////////////////////
 
     void Web_Server::handle_root() {
+#ifdef ENABLE_HTTP_PERFORMANCE_LOG
+        uint64_t start_time = esp_timer_get_time();
+#endif
         String path        = "/index.html";
         String contentType = getContentType(path);
         String pathWithGz  = path + ".gz";
@@ -255,12 +281,26 @@ namespace WebUI {
             File file = SPIFFS.open(path, FILE_READ);
             _webserver->streamFile(file, contentType);
             file.close();
+#ifdef ENABLE_HTTP_PERFORMANCE_LOG
+            uint64_t elapsed = esp_timer_get_time() - start_time;
+            char log_msg[128];
+            snprintf(log_msg, sizeof(log_msg), "[HTTP] GET /: %llu us (%.2f ms) - File\r\n",
+                     elapsed, elapsed / 1000.0);
+            grbl_send(CLIENT_SERIAL, log_msg);
+#endif
             return;
         }
 
         //if no lets launch the default content
         _webserver->sendHeader("Content-Encoding", "gzip");
         _webserver->send_P(200, "text/html", PAGE_NOFILES, PAGE_NOFILES_SIZE);
+#ifdef ENABLE_HTTP_PERFORMANCE_LOG
+        uint64_t elapsed = esp_timer_get_time() - start_time;
+        char log_msg[128];
+        snprintf(log_msg, sizeof(log_msg), "[HTTP] GET /: %llu us (%.2f ms) - Default\r\n",
+                 elapsed, elapsed / 1000.0);
+        grbl_send(CLIENT_SERIAL, log_msg);
+#endif
     }
 
     //Handle not registred path on SPIFFS neither SD ///////////////////////
@@ -440,6 +480,11 @@ namespace WebUI {
 #    endif
 
     void Web_Server::_handle_web_command(bool silent) {
+#ifdef ENABLE_HTTP_PERFORMANCE_LOG
+        uint64_t start_time = esp_timer_get_time();
+        const char* method = _webserver->method() == HTTP_GET ? "GET" : "POST";
+        String uri = _webserver->uri();
+#endif
         //to save time if already disconnected
         //if (_webserver->hasArg ("PAGEID") ) {
         //    if (_webserver->arg ("PAGEID").length() > 0 ) {
@@ -456,6 +501,13 @@ namespace WebUI {
         } else if (_webserver->hasArg("commandText")) {
             cmd = _webserver->arg("commandText");
         } else {
+#ifdef ENABLE_HTTP_PERFORMANCE_LOG
+            uint64_t elapsed = esp_timer_get_time() - start_time;
+            char log_msg[128];
+            snprintf(log_msg, sizeof(log_msg), "[HTTP] %s %s: %llu us (%.2f ms) - Invalid\r\n",
+                     method, uri.c_str(), elapsed, elapsed / 1000.0);
+            grbl_send(CLIENT_SERIAL, log_msg);
+#endif
             _webserver->send(200, "text/plain", "Invalid command");
             return;
         }
@@ -485,8 +537,22 @@ namespace WebUI {
                 espresponse->flush();
             }
             if(espresponse) delete(espresponse);
+#ifdef ENABLE_HTTP_PERFORMANCE_LOG
+            uint64_t elapsed = esp_timer_get_time() - start_time;
+            char log_msg[128];
+            snprintf(log_msg, sizeof(log_msg), "[HTTP] %s %s: %llu us (%.2f ms) - ESP Cmd\r\n",
+                     method, uri.c_str(), elapsed, elapsed / 1000.0);
+            grbl_send(CLIENT_SERIAL, log_msg);
+#endif
         } else {  //execute GCODE
             if (auth_level == AuthenticationLevel::LEVEL_GUEST) {
+#ifdef ENABLE_HTTP_PERFORMANCE_LOG
+                uint64_t elapsed = esp_timer_get_time() - start_time;
+                char log_msg[128];
+                snprintf(log_msg, sizeof(log_msg), "[HTTP] %s %s: %llu us (%.2f ms) - Auth Failed\r\n",
+                         method, uri.c_str(), elapsed, elapsed / 1000.0);
+                grbl_send(CLIENT_SERIAL, log_msg);
+#endif
                 _webserver->send(401, "text/plain", "Authentication failed!\n");
                 return;
             }
@@ -517,6 +583,13 @@ namespace WebUI {
                 }
             }
             _webserver->send(200, "text/plain", hasError?"Error":"");
+#ifdef ENABLE_HTTP_PERFORMANCE_LOG
+            uint64_t elapsed = esp_timer_get_time() - start_time;
+            char log_msg[128];
+            snprintf(log_msg, sizeof(log_msg), "[HTTP] %s %s: %llu us (%.2f ms) - GCode\r\n",
+                     method, uri.c_str(), elapsed, elapsed / 1000.0);
+            grbl_send(CLIENT_SERIAL, log_msg);
+#endif
         }
     }
 
@@ -1550,8 +1623,18 @@ namespace WebUI {
         static uint32_t timeout = millis();
         COMMANDS::wait(0);
 #    ifdef ENABLE_CAPTIVE_PORTAL
-        if (WiFi.getMode() == WIFI_AP) {
-            dnsServer.processNextRequest();
+        // 只在 DNS 服务器已启动且 WiFi AP 模式下处理请求
+        if (dnsServerStarted && WiFi.getMode() == WIFI_AP) {
+            // 检查 AP IP 是否仍然有效
+            IPAddress apIP = WiFi.softAPIP();
+            if (apIP != IPAddress(0, 0, 0, 0)) {
+                dnsServer.processNextRequest();
+            } else {
+                // AP IP 失效, 停止 DNS 服务器
+                dnsServer.stop();
+                dnsServerStarted = false;
+                grbl_send(CLIENT_ALL, "[MSG:Captive Portal Stopped - AP IP lost]\r\n");
+            }
         }
 #    endif
         if (_webserver) {

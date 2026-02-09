@@ -9,6 +9,56 @@
 
 ---
 
+## 2026-02-09
+
+### Bug 修复 (Fixes)
+- fix(safety): 简化安全门状态恢复逻辑
+  - 移除复杂的状态记忆和恢复机制
+  - 使用 `sys.suspend.bit.safetyDoorAjar` 标志位统一管理
+  - 短按按钮时检查门状态决定是否恢复
+  - 提高代码可维护性和可靠性
+- fix(webserver): 修复 DNS 服务器竞态条件
+  - 等待 WiFi AP IP 初始化完成后再启动 DNS 服务器
+  - 添加 `dnsServerStarted` 标志位跟踪启动状态
+  - 在 `Web_Server::end()` 中正确停止 DNS 服务器
+  - 防止 Captive Portal 启动失败
+- fix(init): 修复电机对象初始化顺序问题
+  - 将 `init_motors()` 移到 `stepper_init()` 之前
+  - 避免定时器中断访问未初始化的电机对象
+  - 防止归零时步进定时器中断导致的崩溃
+
+### 优化改进 (Optimizations)
+- opt(config): 优化 WiFi AP 配置
+  - 将 AP SSID 从 `MACHINE_NAME` 改为 `Genmitsu_Kiosk`
+  - 添加 STA/AP 模式配置注释说明
+  - 提高配置可读性
+- opt(log): 增强 SSDP 内存分配异常日志级别
+  - 将 `log_n` 改为 `log_e` (错误级别)
+  - 提高异常可见性，便于故障排查
+
+### 文档更新 (Documentation)
+- docs: 新增 mDNS 功能详解文档 (80KB)
+  - mDNS 协议原理和工作机制
+  - ESP32 mDNS 实现详解
+  - 服务发现和主机名解析
+  - 故障排查和最佳实践
+- docs: 新增 3 个 ESP32 崩溃分析案例
+  - WiFiUDP 断言失败崩溃分析
+  - 归零时步进定时器中断访问未初始化电机对象崩溃分析
+  - 看门狗超时崩溃分析
+  - 包含完整的崩溃日志和根因分析
+- docs: 新增 WiFi 服务启动优化文档
+  - DNS 服务器竞态条件修复详解
+  - WiFi AP 初始化时序分析
+  - 解决方案和测试验证
+
+### 其他变更 (Others)
+- chore: 更新 PlatformIO 和 Python 环境激活脚本
+- chore: 更新 .gitignore 忽略规则
+- chore: 调整 platformio.ini 配置
+
+---
+
 ## 2026-02-05
 
 ### 优化改进 (Optimizations)
