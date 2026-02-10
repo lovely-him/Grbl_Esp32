@@ -286,6 +286,9 @@ void report_feedback_message(Message message) {  // ok to send to all clients
     }
 }
 
+// Weak function: Machine-specific callback after init message
+void __attribute__((weak)) machine_after_init_message() {}
+
 // Welcome message
 void report_init_message(uint8_t client) {
     grbl_sendf(client, "\r\nGrbl %s ['$' for help]\r\n", GRBL_VERSION);

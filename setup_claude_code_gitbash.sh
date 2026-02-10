@@ -41,7 +41,7 @@ verify_git_bash() {
 # 读取配置
 GIT_BASH_PATH=""
 
-# 优先使用 .bat 传入的参数（向后兼容）
+# 优先使用 .bat 传入的参数 (向后兼容)
 if [ -n "$1" ]; then
     echo "Using Git Bash path from parameter..."
     GIT_BASH_PATH="$1"
@@ -57,14 +57,14 @@ elif [ -f "$SWAP_FILE" ]; then
     done < "$SWAP_FILE"
 fi
 
-# 验证路径有效性，无效则提示用户输入
+# 验证路径有效性, 无效则提示用户输入
 while true; do
     if [ -n "$GIT_BASH_PATH" ] && verify_git_bash "$GIT_BASH_PATH"; then
         echo "Git Bash found: $GIT_BASH_PATH"
         break
     fi
 
-    # 路径无效或不存在，提示用户输入
+    # 路径无效或不存在, 提示用户输入
     echo ""
     if [ -n "$GIT_BASH_PATH" ]; then
         echo "Error: Git Bash not found at $GIT_BASH_PATH"

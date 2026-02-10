@@ -47,6 +47,7 @@ def is_code_file(file_path):
         '.c', '.cpp', '.h', '.hpp', '.cc', '.cxx',
         '.py', '.js', '.ts', '.jsx', '.tsx',
         '.java', '.cs', '.go', '.rs',
+        '.sh', '.bat', '.cmd', '.ps1',
         '.json', '.yaml', '.yml'
     }
     _, ext = os.path.splitext(file_path)

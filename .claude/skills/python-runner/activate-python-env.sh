@@ -6,7 +6,7 @@
 
 # 检测脚本是否通过 source 执行
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    echo "[ERROR] 此脚本必须通过 source 命令执行，而不是直接运行"
+    echo "[ERROR] 此脚本必须通过 source 命令执行, 而不是直接运行"
     echo "[ERROR] 正确用法:"
     echo "        source ${BASH_SOURCE[0]}"
     echo "        或"
@@ -14,7 +14,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
-# 默认配置（可通过环境变量覆盖）
+# 默认配置 (可通过环境变量覆盖)
 : "${CONDA_ROOT:=/D/JianHao/miniconda3}"
 : "${PYTHON_ENV_NAME:=py3139uart}"
 
@@ -51,7 +51,7 @@ fi
 
 # 检查 conda 命令是否可用
 if ! command -v conda >/dev/null 2>&1; then
-    _error "conda 命令不可用，请检查安装"
+    _error "conda 命令不可用, 请检查安装"
     return 1
 fi
 

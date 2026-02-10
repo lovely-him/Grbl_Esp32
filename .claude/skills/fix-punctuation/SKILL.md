@@ -26,30 +26,43 @@ argument-hint: [file-path-or-pattern]
 - C#: `.cs`
 - Go: `.go`
 - Rust: `.rs`
+- Shell/批处理脚本: `.sh`, `.bat`, `.cmd`, `.ps1`
 - 配置文件: `.json`, `.yaml`, `.yml`
 
 ## 执行步骤
 
 1. **前置检查: Python 环境**
 
-   按照以下顺序检查 Python 可用性：
+   **CRITICAL**: 必须严格按照以下顺序执行，不可跳过任何步骤：
 
-   a. 尝试运行 `python --version` 或 `python3 --version`
-      - 如果返回版本号（exit code 0），Python 可用，跳到步骤 2
+   **步骤 a - 检查 Python 环境 Skill（优先级最高）**
 
-   c. 如果步骤 a 失败，检查 `.claude/skills/` 目录：
-      - 使用 Glob 工具查找 `.claude/skills/*/SKILL.md`
-      - 读取每个 SKILL.md 的 frontmatter，查找 `allowed-tools` 包含 `python` 的 skill
-      - 如果找到，询问用户是否需要先启用该 skill
+   1. 使用 Glob 工具查找 `.claude/skills/*python*/SKILL.md`（通过名称模式快速定位）
+   2. 对于找到的每个文件，使用 Read 工具的 `limit: 10` 参数只读取前 10 行（frontmatter 部分）
+   3. 验证 `allowed-tools` 字段是否包含 `Bash(python *)` 或类似 Python 相关工具
+   4. **根据找到的 Python skill 数量处理**：
+      - **找到 0 个**：继续到步骤 b（尝试系统 Python）
+      - **找到 1 个**：直接使用该 skill 运行 Python（跳到步骤 2）
+      - **找到多个**：使用 AskUserQuestion 工具询问用户选择哪个 skill
+        - 列出所有找到的 Python skill 名称
+        - 提供选项：各个 skill 名称 + "使用系统 Python"
+        - 等待用户回答后继续
 
-   b. 如果以上都失败，停止执行并报错：
-      ```
-      错误：未找到 Python 环境
+   **步骤 b - 尝试系统 Python（仅在步骤 a 未找到 skill 或用户拒绝时执行）**
 
-      此 skill 需要 Python 环境才能运行。请：
-      1. 安装 Python (https://www.python.org/downloads/)
-      2. 或者检查是否有其他 skill 可以启用 Python 环境
-      ```
+   1. 尝试运行 `python --version`
+   2. 如果失败，尝试运行 `python3 --version`
+   3. 如果任一命令返回版本号（exit code 0），Python 可用，跳到步骤 2
+
+   **步骤 c - 报错并停止（仅在以上所有方法都失败时执行）**
+
+   ```
+   错误：未找到 Python 环境
+
+   此 skill 需要 Python 环境才能运行。请：
+   1. 安装 Python (https://www.python.org/downloads/)
+   2. 或者检查是否有其他 skill 可以启用 Python 环境
+   ```
 
 2. **解析参数**
    - 如果提供了参数 `$ARGUMENTS`, 使用该路径或模式

@@ -151,6 +151,12 @@ void IRAM_ATTR isr_control_inputs() {
 #endif
 }
 
+// Weak function: Custom safety door check (can be overridden by machine-specific code)
+// Returns 1 if unsafe (door open/tilt detected), 0 if safe
+uint8_t __attribute__((weak)) custom_safety_door_check() {
+    return false;  // Default: no custom safety logic, always safe
+}
+
 // Returns if safety door is ajar(T) or closed(F), based on pin state.
 uint8_t system_check_safety_door_ajar() {
 #ifdef ENABLE_SAFETY_DOOR_INPUT_PIN
@@ -158,7 +164,7 @@ uint8_t system_check_safety_door_ajar() {
 #else
     // If no physical pin is defined, return the current flag state
     // This allows custom code to manage the safety door state manually
-    return sys.suspend.bit.safetyDoorAjar;
+    return custom_safety_door_check();
 #endif
 }
 

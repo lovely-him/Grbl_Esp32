@@ -9,6 +9,65 @@
 
 ---
 
+## 2026-02-10
+
+### 重构 (Refactoring)
+- refactor(safety): 重构安全门状态检测机制, 使用弱函数覆盖
+  - 新增 `custom_safety_door_check()` 弱函数, 允许机器特定代码覆盖
+  - 在 `system_check_safety_door_ajar()` 中调用自定义检测函数
+  - 移除直接操作 `sys.suspend.bit.safetyDoorAjar` 的代码
+  - 使用 `safety_door_ajar` 静态标志位统一管理安全状态
+  - 提高代码解耦性和可扩展性
+
+### 新功能 (Features)
+- feat(mdns): 添加 mDNS 查询和重初始化辅助函数
+  - `query_mdns_host()`: 查询指定主机名的 IP 地址
+  - `query_mdns_services()`: 查询网络中提供指定服务的所有设备
+  - `reinit_mdns()`: 重新初始化 mDNS 服务, 强制重新广播
+  - 支持 ENABLE_MDNS 条件编译, 提供空实现
+- feat(button): 添加按钮 Idle 动作配置
+  - 新增 `$Button/Idle/Action` 设置项 (0-99)
+  - 支持 3 种动作: 0=预览边界, 1=归零, 2=mDNS 测试
+  - 允许用户自定义 Idle 状态下的按钮行为
+
+### 优化改进 (Optimizations)
+- opt(i2c): 优化 I2C 初始化顺序和互斥锁管理
+  - 将 I2C 互斥锁创建和总线初始化移到 `machine_init()`
+  - 在 `init_tilt_sensor()` 中检查互斥锁是否已初始化
+  - 添加互斥锁保护, 防止初始化时的竞态条件
+  - 优化传感器重初始化逻辑, 使用 `need_reinit` 标志位
+- opt(realtime): 统一使用 `execute_realtime_command()` 替代直接操作标志位
+  - 替换 `sys_rt_exec_state.bit.*` 直接赋值为标准 API 调用
+  - 提高代码规范性和可维护性
+- opt(log): 优化日志级别, 减少冗余输出
+  - 将按钮事件日志从 INFO 改为 DEBUG
+  - 将状态切换日志从 INFO 改为 DEBUG
+  - 保留关键操作的 INFO 日志
+
+### 文档更新 (Documentation)
+- docs: 新增 mDNS 测试工具集
+  - `test_mdns_provider.py`: mDNS 服务提供者测试工具
+  - `test_mdns_browser.py`: mDNS 服务浏览器测试工具
+  - `diagnose_mdns.py`: mDNS 诊断工具
+  - `test_mdns_check.bat`: 一键测试脚本
+- docs: 新增 ESP32 mDNS 技术文档
+  - `ESP32_mDNS_已知问题汇总.md`: 社区已知问题和解决方案
+  - `ESP32_mDNS_数据包处理流程分析.md`: 源码级数据包处理流程
+  - `mDNS网关与服务提供设备交互过程.md`: 网络交互详解
+- docs: 移除旧的 mDNS 功能详解文档
+  - 内容已整合到新的技术文档中
+
+### 其他变更 (Others)
+- chore(skills): 优化 fix-punctuation skill
+  - 添加 Shell/批处理脚本支持 (.sh, .bat, .cmd, .ps1)
+  - 优化 Python 环境检查逻辑, 优先使用 Python skill
+  - 改进错误处理和用户提示
+- style: 修复 Shell 脚本中的中文标点符号
+  - 修复 `activate-pio-env.sh` 和 `activate-python-env.sh`
+  - 统一使用英文逗号替代中文逗号
+
+---
+
 ## 2026-02-09
 
 ### Bug 修复 (Fixes)

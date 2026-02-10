@@ -34,6 +34,7 @@
 
 #include "../src/Grbl.h"
 #include "../src/WebUI/WebSettings.h"  // 访问 wifi_radio_mode
+#include "../src/WebUI/WebServer.h"    // 访问 web_server.port()
 #include <QMI8658.h>
 #include <WiFi.h>
 #include <Wire.h>
@@ -122,6 +123,9 @@ static QMI8658 imu;
 
 // 自动归位请求标志 (由 machine_after_init_message 设置, safety_monitor_task 处理)
 static bool auto_homing_requested = false;
+
+// 安全状态标志 (由 safety_monitor_task 更新, system_check_safety_door_ajar 读取)
+static bool safety_door_ajar = false;
 
 // 循环任务时间
 #define LOOP_TASK_PERIOD_MS (20)
@@ -303,65 +307,66 @@ bool check_tilt_sensor(uint8_t debug_log) {
 
 // 初始化传感器
 bool init_tilt_sensor() {
-    // 创建 I2C 互斥锁 (只创建一次)
     if (i2c_mutex == NULL) {
-        i2c_mutex = xSemaphoreCreateMutex();
-        if (i2c_mutex == NULL) {
-            HIM_LOG_ERROR("Failed to create I2C mutex");
-            return false;
-        }
-        HIM_LOG_INFO("I2C mutex created");
+        HIM_LOG_ERROR("I2C mutex not initialized");
+        return false;
     }
 
-    // 修复 1: 显式初始化 I2C 总线, 确保频率有效
-    // 在调用 imu.begin() 之前, 先初始化 Wire
-    static bool wire_initialized = false;
-    if (!wire_initialized) {
-        Wire.begin(TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
-        Wire.setClock(100000);  // 显式设置 100kHz (标准模式)
-        wire_initialized = true;
-        HIM_LOG_INFO("I2C bus initialized: 100kHz (SDA=%d, SCL=%d)",
-                 TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
-        vTaskDelay(pdMS_TO_TICKS(10));  // 等待总线稳定
+    if (xSemaphoreTake(i2c_mutex, pdMS_TO_TICKS(200)) != pdTRUE) {
+        HIM_LOG_ERROR("Failed to acquire I2C mutex for init");
+        return false;
     }
 
-    // 修复 2: 添加异常捕获, 防止库内部崩溃
+    // 添加异常捕获, 防止库内部崩溃
     bool init_success = false;
     try {
         init_success = imu.begin(TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
     } catch (...) {
         HIM_LOG_ERROR("QMI8658 init threw exception");
+        xSemaphoreGive(i2c_mutex);
         return false;
     }
 
-    if (!init_success) {
+    if (init_success) {
+        imu.setAccelRange(QMI8658_ACCEL_RANGE_8G);
+        imu.setAccelODR(QMI8658_ACCEL_ODR_1000HZ);
+        imu.enableSensors(QMI8658_ENABLE_ACCEL);
+        HIM_LOG_INFO("QMI8658 initialized (SDA=%d, SCL=%d)", TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
+    } else {
         HIM_LOG_ERROR("QMI8658 init failed");
-        return false;
     }
 
-    imu.setAccelRange(QMI8658_ACCEL_RANGE_8G);
-    imu.setAccelODR(QMI8658_ACCEL_ODR_1000HZ);
-    imu.enableSensors(QMI8658_ENABLE_ACCEL);
-
-    HIM_LOG_INFO("QMI8658 initialized (SDA=%d, SCL=%d)", TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
-    return true;
+    xSemaphoreGive(i2c_mutex);
+    return init_success;
 }
 
 // 读取传感器, 返回是否倾斜
 bool check_tilt_sensor(uint8_t debug_log) {
     static uint8_t consecutive_failures = 0;
     static bool last_tilt_state = false;
+    static bool need_reinit = false;
     const uint8_t MAX_CONSECUTIVE_FAILURES = 5;
     const uint8_t SAMPLE_COUNT = 16;
     const float TILT_THRESHOLD_DEG = 30.0f;
 
-    // 检查互斥锁是否已初始化
+    // 检查是否需要重初始化 (在获取数据前处理)
+    if (need_reinit) {
+        HIM_LOG_INFO("Attempting sensor re-initialization");
+        if (init_tilt_sensor()) {
+            HIM_LOG_INFO("Re-initialization succeeded");
+            consecutive_failures = 0;
+            need_reinit = false;
+        } else {
+            HIM_LOG_ERROR("Re-initialization failed, will retry next time");
+            return last_tilt_state;
+        }
+    }
+
     if (i2c_mutex == NULL) {
         HIM_LOG_ERROR("I2C mutex not initialized");
         return last_tilt_state;
     }
 
-    // 尝试获取互斥锁 (超时 100ms)
     if (xSemaphoreTake(i2c_mutex, pdMS_TO_TICKS(100)) != pdTRUE) {
         HIM_LOG_WARN("Failed to acquire I2C mutex (timeout), using last state");
         return last_tilt_state;
@@ -396,19 +401,13 @@ bool check_tilt_sensor(uint8_t debug_log) {
         }
     }
 
-    // 释放互斥锁
     xSemaphoreGive(i2c_mutex);
 
     if (valid_samples < 4) {
-        HIM_LOG_ERROR("sensor valid samples : %d", valid_samples);
+        HIM_LOG_ERROR("sensor valid samples: %d", valid_samples);
         consecutive_failures++;
         if (consecutive_failures >= MAX_CONSECUTIVE_FAILURES) {
-            HIM_LOG_INFO("Consecutive failures: %d, attempting re-initialization", consecutive_failures);
-            if (init_tilt_sensor()) {
-                HIM_LOG_INFO("Re-initialization succeeded");
-            } else {
-                HIM_LOG_ERROR("Re-initialization failed, will retry on next failure");
-            }
+            need_reinit = true;
         }
         return last_tilt_state;
     }
@@ -445,6 +444,179 @@ bool check_tilt_sensor(uint8_t debug_log) {
 }
 
 #endif  // USE_QMI8658_REGISTER_DIRECT
+
+// ============================================================================
+// mDNS 查询辅助函数
+// ============================================================================
+
+#ifdef ENABLE_MDNS
+#include <ESPmDNS.h>
+
+/**
+ * 查询指定主机名的 IP 地址
+ *
+ * @param hostname 主机名 (不含 .local 后缀)
+ * @return 查询到的 IP 地址, 失败返回 0.0.0.0
+ *
+ * 注意: 此函数会阻塞约 2 秒, 不要在关键任务中频繁调用
+ */
+IPAddress query_mdns_host(const char* hostname) {
+    if (hostname == nullptr || hostname[0] == '\0') {
+        HIM_LOG_WARN("Invalid hostname parameter (null or empty)");
+        return IPAddress(0, 0, 0, 0);
+    }
+
+    if (WiFi.status() != WL_CONNECTED) {
+        HIM_LOG_WARN("WiFi not connected, cannot query host");
+        return IPAddress(0, 0, 0, 0);
+    }
+
+    HIM_LOG_INFO("Querying host: %s.local", hostname);
+
+    // 查询主机 (超时 2 秒)
+    IPAddress ip = MDNS.queryHost((char*)hostname, 2000);
+
+    if (ip == IPAddress(0, 0, 0, 0)) {
+        HIM_LOG_WARN("Host '%s.local' not found", hostname);
+    } else {
+        HIM_LOG_INFO("Found %s.local at %s", hostname, ip.toString().c_str());
+
+        if (ip == WiFi.localIP()) {
+            HIM_LOG_INFO("  ^ This is me!");
+        }
+    }
+
+    return ip;
+}
+
+/**
+ * 查询网络中提供指定服务的所有设备
+ *
+ * @param service 服务类型 (如 "http", "ftp")
+ * @param proto 协议类型 (如 "tcp", "udp")
+ * @return 找到的设备数量
+ *
+ * 注意: 此函数会阻塞约 3 秒, 不要在关键任务中频繁调用
+ * 查询结果可通过 MDNS.hostname(i), MDNS.IP(i), MDNS.port(i) 访问
+ */
+int query_mdns_services(const char* service, const char* proto) {
+    if (service == nullptr || service[0] == '\0') {
+        HIM_LOG_WARN("Invalid service parameter (null or empty)");
+        return 0;
+    }
+    if (proto == nullptr || proto[0] == '\0') {
+        HIM_LOG_WARN("Invalid proto parameter (null or empty)");
+        return 0;
+    }
+
+    if (WiFi.status() != WL_CONNECTED) {
+        HIM_LOG_WARN("WiFi not connected, cannot query services");
+        return 0;
+    }
+
+    HIM_LOG_INFO("Querying services: _%s._%s.local", service, proto);
+
+    // 查询服务 (超时 3 秒, 最多 20 个结果)
+    int n = MDNS.queryService((char*)service, (char*)proto);
+
+    if (n == 0) {
+        HIM_LOG_WARN("No %s.%s services found", service, proto);
+        return 0;
+    }
+
+    HIM_LOG_INFO("Found %d %s.%s service(s):", n, service, proto);
+
+    IPAddress my_ip = WiFi.localIP();
+
+    for (int i = 0; i < n; i++) {
+        String hostname = MDNS.hostname(i);
+        IPAddress ip = MDNS.IP(i);
+        uint16_t port = MDNS.port(i);
+
+        if (ip == my_ip) {
+            HIM_LOG_INFO("  [%d] %s at %s:%d <- This is me!",
+                i, hostname.c_str(), ip.toString().c_str(), port);
+        } else {
+            HIM_LOG_INFO("  [%d] %s at %s:%d",
+                i, hostname.c_str(), ip.toString().c_str(), port);
+        }
+    }
+
+    return n;
+}
+
+/**
+ * 重新初始化 mDNS 服务 (强制重新广播)
+ *
+ * @return true = 成功, false = 失败
+ *
+ * 功能说明:
+ * - ESP32 的 mDNS 只在上电时主动广播, 运行时是被动响应模式
+ * - 此函数通过完全重启 mDNS 服务来强制重新广播
+ * - 适用于网络环境变化或需要强制宣告服务的场景
+ *
+ * 注意:
+ * - 此函数会阻塞约 100-200ms, 不要在关键任务中频繁调用
+ * - 仅在 WiFi STA 模式下有效
+ */
+bool reinit_mdns() {
+    if (WiFi.status() != WL_CONNECTED) {
+        HIM_LOG_WARN("WiFi not connected, cannot reinit mDNS");
+        return false;
+    }
+
+    wifi_mode_t wifi_mode = WiFi.getMode();
+    if (wifi_mode != WIFI_STA && wifi_mode != WIFI_AP_STA) {
+        HIM_LOG_WARN("WiFi not in STA mode (mode=%d), cannot reinit mDNS", wifi_mode);
+        return false;
+    }
+
+    // 获取主机名和端口
+    String hostname = WebUI::wifi_hostname->get();
+    uint16_t port = WebUI::web_server.port();
+
+    HIM_LOG_INFO("Reinitializing mDNS: %s.local:%d", hostname.c_str(), port);
+
+    // 1. 停止当前 mDNS 服务
+    MDNS.end();
+    vTaskDelay(pdMS_TO_TICKS(50));  // 等待清理完成
+
+    // 2. 重新初始化 mDNS
+    if (!MDNS.begin(hostname.c_str())) {
+        HIM_LOG_ERROR("Failed to restart mDNS");
+        return false;
+    }
+
+    HIM_LOG_INFO("mDNS restarted successfully");
+
+    // 3. 重新注册 HTTP 服务
+    MDNS.addService("http", "tcp", port);
+    HIM_LOG_INFO("HTTP service re-registered on port %d", port);
+
+    // 4. 等待初始宣告完成 (2 次宣告, 间隔 1 秒)
+    vTaskDelay(pdMS_TO_TICKS(50));
+
+    HIM_LOG_INFO("mDNS reinitialization complete");
+    return true;
+}
+
+#else
+// ENABLE_MDNS 未定义时的空实现
+IPAddress query_mdns_host(const char* hostname) {
+    HIM_LOG_INFO("mDNS disabled (ENABLE_MDNS not defined)");
+    return IPAddress(0, 0, 0, 0);
+}
+
+int query_mdns_services(const char* service, const char* proto) {
+    HIM_LOG_INFO("mDNS disabled (ENABLE_MDNS not defined)");
+    return 0;
+}
+
+bool reinit_mdns() {
+    HIM_LOG_INFO("mDNS disabled (ENABLE_MDNS not defined)");
+    return false;
+}
+#endif
 
 // ============================================================================
 // 离线雕刻和预览边界
@@ -528,21 +700,38 @@ void preview_boundary() {
 
 // 按钮短按处理函数
 void handle_short_press() {
-    HIM_LOG_INFO("Short press");
+    HIM_LOG_DEBUG("Short press");
 
     switch (sys.state) {
         case State::Idle:
-            preview_boundary();
+            if (button_idle_action) {
+                switch (button_idle_action->get()) {
+                    case 0:
+                        preview_boundary();
+                        break;
+                    case 1:
+                        WebUI::inputBuffer.push("$H\r");
+                        break;
+                    case 2:
+                        reinit_mdns();
+                        query_mdns_host(WebUI::wifi_hostname->get());
+                        query_mdns_services("http", "tcp");
+                        break;
+                    default:
+                        HIM_LOG_WARN("Invalid $Button/Idle/Action value: %d", button_idle_action->get());
+                        break;
+                }
+            }
             break;
 
         case State::Cycle:
             HIM_LOG_INFO("Pause");
-            sys_rt_exec_state.bit.feedHold = true;
+            execute_realtime_command(Cmd::FeedHold, CLIENT_SERIAL);
             break;
 
         case State::Hold:
             HIM_LOG_INFO("Resume");
-            sys_rt_exec_state.bit.cycleStart = true;
+            execute_realtime_command(Cmd::CycleStart, CLIENT_SERIAL);
             break;
 
         case State::Alarm:
@@ -555,30 +744,27 @@ void handle_short_press() {
 
         case State::Jog:
             HIM_LOG_INFO("Stop jog");
-            sys_rt_exec_state.bit.feedHold = true;
+            execute_realtime_command(Cmd::FeedHold, CLIENT_SERIAL);
             break;
 
         case State::CheckMode:
             HIM_LOG_INFO("Exit check mode");
-            WebUI::inputBuffer.push("?\r");
+            execute_realtime_command(Cmd::StatusReport, CLIENT_SERIAL);
             break;
 
         case State::SafetyDoor:
             if (!sys.suspend.bit.safetyDoorAjar) {
-                // 门已关闭, 可以恢复
                 HIM_LOG_INFO("Resume from safety door");
-                sys_rt_exec_state.bit.cycleStart = true;
-                WebUI::inputBuffer.push("$H\r");
+                execute_realtime_command(Cmd::CycleStart, CLIENT_SERIAL);
             } else {
-                // 门还开着
                 HIM_LOG_INFO("Safety door is open, please close it first");
-                WebUI::inputBuffer.push("?\r");
+                execute_realtime_command(Cmd::StatusReport, CLIENT_SERIAL);
             }
             break;
 
         case State::Sleep:
             HIM_LOG_INFO("Short press during Sleep");
-            WebUI::inputBuffer.push("?\r");
+            execute_realtime_command(Cmd::StatusReport, CLIENT_SERIAL);
             break;
 
         default:
@@ -589,7 +775,7 @@ void handle_short_press() {
 
 // 按钮长按处理函数
 void handle_long_press_3s() {
-    HIM_LOG_INFO("Long press 3s");
+    HIM_LOG_DEBUG("Long press 3s");
 
     switch (sys.state) {
         case State::Idle:
@@ -599,7 +785,7 @@ void handle_long_press_3s() {
         case State::Cycle:
         case State::Hold:
             HIM_LOG_INFO("Stop");
-            sys_rt_exec_state.bit.reset = true;
+            execute_realtime_command(Cmd::Reset, CLIENT_SERIAL);
             break;
 
         case State::Alarm:
@@ -615,7 +801,7 @@ void handle_long_press_3s() {
 
 // 按钮超长按处理函数
 void handle_long_press_10s() {
-    HIM_LOG_INFO("Long press 10s - Reset WiFi to AP mode");
+    HIM_LOG_DEBUG("Long press 10s - Reset WiFi to AP mode");
 
     // 1. 直接修改WiFi模式设置为AP (保存到NVS)
     if (WebUI::wifi_radio_mode) {
@@ -858,7 +1044,7 @@ void update_led_auto_control() {
     }
 
     if (current_sys_state != sys.state) {
-        HIM_LOG_INFO("State: %s -> %s", sys_state_names[(int)current_sys_state], sys_state_names[(int)sys.state]);
+        HIM_LOG_DEBUG("State: %s -> %s", sys_state_names[(int)current_sys_state], sys_state_names[(int)sys.state]);
         current_sys_state = sys.state;
     }
 
@@ -955,8 +1141,8 @@ void led_fan_control_task(void* parameter) {
 // ============================================================================
 
 void safety_monitor_task(void* parameter) {
-    // HIM_LOG_INFO("DEFAULT_SAFETY_DOOR_ENABLED: %d", DEFAULT_SAFETY_DOOR_ENABLED);
-    // HIM_LOG_INFO("DEFAULT_TILT_SENSOR_ENABLED: %d", DEFAULT_TILT_SENSOR_ENABLED);
+    HIM_LOG_DEBUG("DEFAULT_SAFETY_DOOR_ENABLED: %d", DEFAULT_SAFETY_DOOR_ENABLED);
+    HIM_LOG_DEBUG("DEFAULT_TILT_SENSOR_ENABLED: %d", DEFAULT_TILT_SENSOR_ENABLED);
 
     bool last_door_state = false;
     bool last_tilt_state = false;
@@ -989,21 +1175,18 @@ void safety_monitor_task(void* parameter) {
 
         // 安全门触发处理
         if (safety_condition) {
-            // 设置标志 (让状态报告显示 Door:1)
-            sys.suspend.bit.safetyDoorAjar = true;
-
-            // 触发安全门 (只在非 SafetyDoor 和非 Alarm 状态触发)
             if (sys.state != State::SafetyDoor && sys.state != State::Alarm) {
-                HIM_LOG_INFO("Safety door triggered (was in %s state)", sys_state_names[(int)sys.state]);
-                sys_rt_exec_state.bit.safetyDoor = true;
+                HIM_LOG_DEBUG("Safety door triggered (was in %s state)", sys_state_names[(int)sys.state]);
+                execute_realtime_command(Cmd::SafetyDoor, CLIENT_SERIAL);
             }
         } else {
-            // 安全门关闭, 清除标志 (让状态报告显示 Door:0)
             if (sys.state == State::SafetyDoor && sys.suspend.bit.safetyDoorAjar) {
-                sys.suspend.bit.safetyDoorAjar = false;
-                HIM_LOG_INFO("Safety door closed, press button or send ~ to resume");
+                HIM_LOG_DEBUG("Safety door closed, press button or send ~ to resume");
             }
         }
+
+        // 更新全局安全状态标志
+        safety_door_ajar = safety_condition;
 
         // 自动归位逻辑
         if (auto_homing_requested && !_auto_homing_requested) {
@@ -1034,7 +1217,7 @@ void safety_monitor_task(void* parameter) {
 void machine_init() {
     HIM_LOG_INFO("Wainlux K11 HIM Custom Init (Full Rewrite)");
     HIM_LOG_INFO("Compiled: %s at %s", __DATE__, __TIME__);
-    HIM_LOG_INFO("ESP32 SDK: %s", ESP.getSdkVersion());
+    HIM_LOG_DEBUG("ESP32 SDK: %s", ESP.getSdkVersion());
 
     // 初始化 GPIO
     pinMode(USER_BUTTON_PIN, INPUT_PULLUP);
@@ -1047,6 +1230,19 @@ void machine_init() {
     fan_output = new UserOutput::AnalogOutput(1, COOLING_FAN_PIN, PWM_FREQ_SHARED);
     set_fan_speed(FAN_PER_ON);
 
+    // 创建 I2C 互斥锁 (只创建一次)
+    i2c_mutex = xSemaphoreCreateMutex();
+    if (i2c_mutex == NULL) {
+        HIM_LOG_ERROR("Failed to create I2C mutex");
+        return;
+    }
+    HIM_LOG_INFO("I2C mutex created");
+
+    // 初始化 I2C 总线 (只调用一次) // 显式设置 100kHz (标准模式)
+    Wire.begin(TILT_SENSOR_SDA_PIN, TILT_SENSOR_SCL_PIN);
+    Wire.setClock(100000);
+    vTaskDelay(pdMS_TO_TICKS(10));
+
     // 初始化倾斜传感器
     (void)init_tilt_sensor();
     (void)check_tilt_sensor(true);
@@ -1056,7 +1252,7 @@ void machine_init() {
     xTaskCreatePinnedToCore(button_monitor_task, "Button", 4096, NULL, 1, NULL, 1);
     xTaskCreatePinnedToCore(safety_monitor_task, "Safety", 4096, NULL, 1, NULL, 1);
 
-    HIM_LOG_INFO("Custom tasks created: Button, Safety, LED+Fan");
+    HIM_LOG_INFO("Custom tasks created: Button, Safety, LED, Fan");
 }
 
 // ============================================================================
@@ -1073,4 +1269,18 @@ void user_m30() {
 
 void machine_after_init_message() {
     auto_homing_requested = true;
+}
+
+// ============================================================================
+// 安全门状态检测覆盖 (弱函数实现)
+// ============================================================================
+
+/**
+ * 覆盖 Grbl 的安全门检测函数
+ * 返回当前的实时安全状态 (倾斜传感器 + 物理门开关)
+ *
+ * @return 1 = 不安全 (门打开/倾斜), 0 = 安全
+ */
+uint8_t custom_safety_door_check() {
+    return safety_door_ajar ? 1 : 0;
 }

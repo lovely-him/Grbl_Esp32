@@ -62,6 +62,8 @@ EnumSetting* spindle_type;
 
 EnumSetting* message_level;
 
+IntSetting* button_idle_action;
+
 enum_opt_t spindleTypes = {
     // clang-format off
     { "NONE", int8_t(SpindleType::NONE) },
@@ -419,4 +421,6 @@ void make_settings() {
     user_macro0 = new StringSetting(EXTENDED, WG, NULL, "User/Macro0", DEFAULT_USER_MACRO0);
 
     message_level = +new EnumSetting(NULL, EXTENDED, WG, NULL, "Message/Level", static_cast<int8_t>(MsgLevel::Info), &messageLevels, NULL);
+
+    button_idle_action = new IntSetting(EXTENDED, WG, NULL, "Button/Idle/Action", 0, 0, 99);
 }

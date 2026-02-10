@@ -83,9 +83,6 @@ void report_feedback_message(Message message);
 // Prints welcome message
 void report_init_message(uint8_t client);
 
-// Machine-specific callback after init message (weak function)
-void __attribute__((weak)) machine_after_init_message();
-
 // Prints Grbl help and current global settings
 void report_grbl_help(uint8_t client);
 

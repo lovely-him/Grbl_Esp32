@@ -6,7 +6,7 @@
 
 # 检测脚本是否通过 source 执行
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    echo "[ERROR] 此脚本必须通过 source 命令执行，而不是直接运行"
+    echo "[ERROR] 此脚本必须通过 source 命令执行, 而不是直接运行"
     echo "[ERROR] 正确用法:"
     echo "        source ${BASH_SOURCE[0]}"
     echo "        或"
@@ -14,7 +14,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
-# 默认配置（可通过环境变量覆盖）
+# 默认配置 (可通过环境变量覆盖)
 : "${PIO_PATH:=/c/Users/admin/.platformio/penv/Scripts}"
 
 # 颜色输出
@@ -59,7 +59,7 @@ if command -v pio >/dev/null 2>&1; then
 
     return 0
 else
-    _error "pio 命令不可用，请检查安装"
+    _error "pio 命令不可用, 请检查安装"
     _error "预期路径: ${PIO_PATH}/pio.exe"
     return 1
 fi

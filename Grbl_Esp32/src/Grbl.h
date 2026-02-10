@@ -98,6 +98,10 @@ void display_init();                      // weak definition in Grbl.cpp
 void user_m30();                          // weak definition in Grbl.cpp/
 void user_tool_change(uint8_t new_tool);  // weak definition in Grbl.cpp
 
+void machine_after_init_message();        // weak definition in Report.cpp
+
+uint8_t custom_safety_door_check();       // weak definition in System.cpp
+
 bool user_defined_homing(uint8_t cycle_mask);  // weak definition in Limits.cpp
 
 // weak definitions in MotionControl.cpp
