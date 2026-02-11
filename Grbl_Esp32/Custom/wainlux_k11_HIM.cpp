@@ -451,16 +451,16 @@ bool check_tilt_sensor(uint8_t debug_log) {
 
 #ifdef ENABLE_MDNS
 #include <ESPmDNS.h>
+#include <mdns.h>
 
 /**
  * 查询指定主机名的 IP 地址
  *
  * @param hostname 主机名 (不含 .local 后缀)
+ * @param timeout_ms 超时时间 (毫秒), 默认 20 秒
  * @return 查询到的 IP 地址, 失败返回 0.0.0.0
- *
- * 注意: 此函数会阻塞约 2 秒, 不要在关键任务中频繁调用
  */
-IPAddress query_mdns_host(const char* hostname) {
+IPAddress query_mdns_host(const char* hostname, uint32_t timeout_ms = 20000) {
     if (hostname == nullptr || hostname[0] == '\0') {
         HIM_LOG_WARN("Invalid hostname parameter (null or empty)");
         return IPAddress(0, 0, 0, 0);
@@ -471,10 +471,10 @@ IPAddress query_mdns_host(const char* hostname) {
         return IPAddress(0, 0, 0, 0);
     }
 
-    HIM_LOG_INFO("Querying host: %s.local", hostname);
+    HIM_LOG_INFO("Querying host: %s.local (timeout=%dms)", hostname, timeout_ms);
 
-    // 查询主机 (超时 2 秒)
-    IPAddress ip = MDNS.queryHost((char*)hostname, 2000);
+    // 查询主机
+    IPAddress ip = MDNS.queryHost((char*)hostname, timeout_ms);
 
     if (ip == IPAddress(0, 0, 0, 0)) {
         HIM_LOG_WARN("Host '%s.local' not found", hostname);
@@ -496,7 +496,6 @@ IPAddress query_mdns_host(const char* hostname) {
  * @param proto 协议类型 (如 "tcp", "udp")
  * @return 找到的设备数量
  *
- * 注意: 此函数会阻塞约 3 秒, 不要在关键任务中频繁调用
  * 查询结果可通过 MDNS.hostname(i), MDNS.IP(i), MDNS.port(i) 访问
  */
 int query_mdns_services(const char* service, const char* proto) {
@@ -543,6 +542,92 @@ int query_mdns_services(const char* service, const char* proto) {
     }
 
     return n;
+}
+
+/**
+ * 查询网络中提供指定服务的所有设备 (支持自定义超时)
+ *
+ * @param service 服务类型 (如 "http", "ftp")
+ * @param proto 协议类型 (如 "tcp", "udp")
+ * @param timeout_ms 超时时间 (毫秒), 默认 20 秒
+ * @return 找到的设备数量
+ *
+ * 使用 ESP-IDF 底层 API 实现, 支持自定义超时时间
+ */
+int query_mdns_services_with_timeout(const char* service, const char* proto, uint32_t timeout_ms = 20000) {
+    if (service == nullptr || service[0] == '\0') {
+        HIM_LOG_WARN("Invalid service parameter (null or empty)");
+        return 0;
+    }
+    if (proto == nullptr || proto[0] == '\0') {
+        HIM_LOG_WARN("Invalid proto parameter (null or empty)");
+        return 0;
+    }
+
+    if (WiFi.status() != WL_CONNECTED) {
+        HIM_LOG_WARN("WiFi not connected, cannot query services");
+        return 0;
+    }
+
+    HIM_LOG_INFO("Querying services: _%s._%s.local (timeout=%dms)", service, proto, timeout_ms);
+
+    // 使用 ESP-IDF 底层 API 查询 (最多 20 个结果)
+    mdns_result_t* results = NULL;
+    esp_err_t err = mdns_query_ptr(service, proto, timeout_ms, 20, &results);
+
+    if (err != ESP_OK) {
+        HIM_LOG_ERROR("Query failed: %d", err);
+        return 0;
+    }
+
+    if (results == NULL) {
+        HIM_LOG_WARN("No %s.%s services found", service, proto);
+        return 0;
+    }
+
+    // 统计结果数量
+    int count = 0;
+    mdns_result_t* r = results;
+    while (r) {
+        count++;
+        r = r->next;
+    }
+
+    HIM_LOG_INFO("Found %d %s.%s service(s):", count, service, proto);
+
+    // 输出结果
+    IPAddress my_ip = WiFi.localIP();
+    r = results;
+    int index = 0;
+
+    while (r) {
+        // 获取 IPv4 地址
+        mdns_ip_addr_t* addr = r->addr;
+        while (addr) {
+            if (addr->addr.type == IPADDR_TYPE_V4) {
+                IPAddress ip(addr->addr.u_addr.ip4.addr);
+
+                if (ip == my_ip) {
+                    HIM_LOG_INFO("  [%d] %s at %s:%d <- This is me!",
+                        index, r->hostname ? r->hostname : "(unknown)",
+                        ip.toString().c_str(), r->port);
+                } else {
+                    HIM_LOG_INFO("  [%d] %s at %s:%d",
+                        index, r->hostname ? r->hostname : "(unknown)",
+                        ip.toString().c_str(), r->port);
+                }
+                break;  // 只显示第一个 IPv4 地址
+            }
+            addr = addr->next;
+        }
+
+        index++;
+        r = r->next;
+    }
+
+    // 释放结果
+    mdns_query_results_free(results);
+    return count;
 }
 
 /**
@@ -602,12 +687,17 @@ bool reinit_mdns() {
 
 #else
 // ENABLE_MDNS 未定义时的空实现
-IPAddress query_mdns_host(const char* hostname) {
+IPAddress query_mdns_host(const char* hostname, uint32_t timeout_ms = 20000) {
     HIM_LOG_INFO("mDNS disabled (ENABLE_MDNS not defined)");
     return IPAddress(0, 0, 0, 0);
 }
 
 int query_mdns_services(const char* service, const char* proto) {
+    HIM_LOG_INFO("mDNS disabled (ENABLE_MDNS not defined)");
+    return 0;
+}
+
+int query_mdns_services_with_timeout(const char* service, const char* proto, uint32_t timeout_ms = 20000) {
     HIM_LOG_INFO("mDNS disabled (ENABLE_MDNS not defined)");
     return 0;
 }
@@ -714,9 +804,21 @@ void handle_short_press() {
                         break;
                     case 2:
                         reinit_mdns();
-                        query_mdns_host(WebUI::wifi_hostname->get());
-                        query_mdns_services("http", "tcp");
                         break;
+                    case 3: {
+                        const char* base_hostname = WebUI::wifi_hostname->get();
+                        char hostname[64];
+
+                        query_mdns_host(base_hostname, 20000);
+
+                        for (int i = 2; i <= 5; i++) {
+                            snprintf(hostname, sizeof(hostname), "%s-%d", base_hostname, i);
+                            query_mdns_host(hostname, 20000);
+                        }
+
+                        query_mdns_services_with_timeout("http", "tcp", 20000);
+                        break;
+                    }
                     default:
                         HIM_LOG_WARN("Invalid $Button/Idle/Action value: %d", button_idle_action->get());
                         break;

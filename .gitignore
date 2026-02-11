@@ -21,7 +21,6 @@ __vm/
 *.suo
 Grbl_Esp32.ino.cpp
 /packages
-.claude/settings.json
 .claude/settings.local.json
 setup_claude_code_gitbash.swp
 doc/log/

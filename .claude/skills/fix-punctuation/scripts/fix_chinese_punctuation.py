@@ -73,13 +73,13 @@ def process_file(file_path):
         return False
 
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, 'r', encoding='utf-8', newline='') as f:
             content = f.read()
 
         fixed_content, changes = fix_chinese_punctuation(content)
 
         if changes > 0:
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, 'w', encoding='utf-8', newline='') as f:
                 f.write(fixed_content)
             print(f"[SUCCESS] Fixed {changes} punctuation(s) in: {file_path}")
             return True

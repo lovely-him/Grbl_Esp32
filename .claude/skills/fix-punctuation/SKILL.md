@@ -1,6 +1,7 @@
 ---
 name: fix-punctuation
 description: Format code files by converting Chinese punctuation to English punctuation. Supports .c .cpp .h .py .js .java and all code files
+disable-model-invocation: true
 user-invocable: true
 allowed-tools: Bash(python *)
 argument-hint: [file-path-or-pattern]

@@ -9,6 +9,51 @@
 
 ---
 
+## 2026-02-11
+
+### 新功能 (Features)
+- feat(mdns): 新增支持自定义超时的 mDNS 查询函数
+  - `query_mdns_host()` 新增 `timeout_ms` 参数, 默认 20 秒
+  - 新增 `query_mdns_services_with_timeout()` 函数, 使用 ESP-IDF 底层 API
+  - 支持最多 20 个查询结果, 自动识别本机服务
+  - 优化日志输出, 显示超时时间和查询结果详情
+- feat(button): 新增按钮批量查询主机名功能
+  - 新增 `$Button/Idle/Action=3` 选项
+  - 支持查询基础主机名和 `-2` 到 `-5` 后缀变体
+  - 集成 `query_mdns_services_with_timeout()` 查询 HTTP 服务
+
+### Bug 修复 (Fixes)
+- fix(test): 修复 Python mDNS 测试脚本的解析问题
+  - 使用 `zeroconf` 库替代 `socket.getaddrinfo()` (不支持 mDNS)
+  - 支持多种服务类型浏览 (_http, _workstation, _device-info)
+  - 修复主机名匹配逻辑, 正确处理 FQDN 格式
+  - 避免重复添加服务, 优化查询结果展示
+
+### 优化改进 (Optimizations)
+- opt(skills): 优化 fix-punctuation 工具的换行符处理
+  - 使用 `newline=''` 参数保留原始换行符格式
+  - 避免 Windows 环境下的 CRLF/LF 转换问题
+  - 新增 `disable-model-invocation: true` 配置, 提高执行效率
+
+### 文档更新 (Documentation)
+- docs: 新增 Windows 无法发现 ESP32 mDNS 服务问题总结
+  - 分析 IGMP 版本不匹配问题 (Windows IGMPv3 vs ESP32 IGMPv2)
+  - 说明 Windows 不原生支持 mDNS 解析的限制
+  - 提供 3 种解决方案: 修改 IGMP 版本/安装 Bonjour/使用 zeroconf 库
+  - 新增 Wireshark 抓包数据 (IGMPv2.pcapng, IGMPv2_v3.pcapng)
+  - 包含抓包数据的 C 数组和 CSV 格式导出
+- docs: 移除旧的 mDNS 已知问题汇总文档
+  - 内容已整合到新的 Windows 问题总结文档中
+
+### 其他变更 (Others)
+- chore: 新增 Claude Code 设置文件到版本控制
+  - 配置 Bash 命令权限白名单 (cat, ls, git)
+  - 禁止危险的 git 操作 (reset --hard, push --force 等)
+  - 设置环境变量 (最大输出 token, 禁用非必要流量)
+- chore: 更新 .gitignore, 允许提交 .claude/settings.json
+
+---
+
 ## 2026-02-10
 
 ### 重构 (Refactoring)
