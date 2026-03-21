@@ -9,10 +9,10 @@
         - 超长按 10s: 重置 WiFi 为 AP 模式
 
     2. LED 状态指示 (PWM 呼吸灯 + 多种闪烁):
-        - 警告状态: 0.5s 亮 / 0.2s 灭
-        - 安全保护: 0.5s 亮 / 0.5s 灭
+        - 警告状态:
+        - 安全保护:
         - 雕刻状态: PWM 呼吸灯 (2秒周期)
-        - WiFi 连接中: 0.2s 亮 / 0.2s 灭
+        - WiFi 连接中:
         - 待机模式: 常亮
 
     3. 安全门和倾斜传感器:
@@ -91,6 +91,7 @@ enum class LEDState {
     SAFETY_DOOR,        // 安全门/倾斜保护
     CYCLE,              // 雕刻状态 (呼吸灯)
     WIFI_STA_CONNECTING,// WiFi 连接中
+    WIFI_AP_CONNECTING, // WiFi 配网中
     IDLE,               // 待机模式 (常亮)
 };
 
@@ -903,6 +904,10 @@ void handle_long_press_3s() {
 
 // 按钮超长按处理函数
 void handle_long_press_10s() {
+#if 1 // 直接恢复出厂设置
+    HIM_LOG_DEBUG("Long press 10s - Reset to factory settings");
+    settings_restore(SettingsRestore::All);
+#else
     HIM_LOG_DEBUG("Long press 10s - Reset WiFi to AP mode");
 
     // 1. 直接修改WiFi模式设置为AP (保存到NVS)
@@ -917,6 +922,7 @@ void handle_long_press_10s() {
     } else {
         HIM_LOG_ERROR("wifi_radio_mode is NULL!");
     }
+#endif
 
     // 2. 等待NVS写入完成
     vTaskDelay(pdMS_TO_TICKS(100));
@@ -1099,17 +1105,21 @@ void set_led_pattern(const uint32_t* pattern, uint8_t pattern_length) {
 // LED 自动控制逻辑
 void update_led_auto_control() {
     // LED 闪烁模式定义 (函数内部 static const, 遵循最小作用域)
-    // ALARM: 闪烁1次 (灭50ms, 亮1950ms, 总周期2000ms)
+    // ALARM: 闪烁1次
     static const uint32_t LED_PATTERN_ALARM[] = {100, LED_PER_OFF, 1900, LED_PER_ON};
     static const uint8_t LED_PATTERN_ALARM_LEN = sizeof(LED_PATTERN_ALARM) / sizeof(uint32_t);
 
-    // SAFETY_DOOR: 闪烁2次 (灭50ms, 亮50ms, 灭50ms, 亮1850ms, 总周期2000ms)
-    static const uint32_t LED_PATTERN_SAFETY_DOOR[] = {100, LED_PER_OFF, 100, LED_PER_ON, 100, LED_PER_OFF, 1700, LED_PER_ON};
+    // SAFETY_DOOR: 等间隔闪烁 快速
+    static const uint32_t LED_PATTERN_SAFETY_DOOR[] = {200, LED_PER_OFF, 200, LED_PER_ON};
     static const uint8_t LED_PATTERN_SAFETY_DOOR_LEN = sizeof(LED_PATTERN_SAFETY_DOOR) / sizeof(uint32_t);
 
-    // WIFI_STA_CONNECTING: 等间隔闪烁 (灭1000ms, 亮1000ms, 总周期2000ms)
-    static const uint32_t LED_PATTERN_WIFI_CONNECTING[] = {500, LED_PER_OFF, 500, LED_PER_ON};
-    static const uint8_t LED_PATTERN_WIFI_CONNECTING_LEN = sizeof(LED_PATTERN_WIFI_CONNECTING) / sizeof(uint32_t);
+    // WIFI_STA_CONNECTING: 等间隔闪烁 慢速
+    static const uint32_t LED_PATTERN_STA_CONNECTING[] = {500, LED_PER_OFF, 500, LED_PER_ON};
+    static const uint8_t LED_PATTERN_STA_CONNECTING_LEN = sizeof(LED_PATTERN_STA_CONNECTING) / sizeof(uint32_t);
+
+    // WIFI_AP_CONNECTING: 闪烁3次
+    static const uint32_t LED_PATTERN_AP_CONNECTING[] = {100, LED_PER_OFF, 100, LED_PER_ON, 100, LED_PER_OFF, 100, LED_PER_ON, 100, LED_PER_OFF, 1500, LED_PER_ON};
+    static const uint8_t LED_PATTERN_AP_CONNECTING_LEN = sizeof(LED_PATTERN_AP_CONNECTING) / sizeof(uint32_t);
 
     static State current_sys_state = State::Idle;
     LEDState new_state = LEDState::ALARM;
@@ -1139,10 +1149,13 @@ void update_led_auto_control() {
 
     // 后置判断: WiFi 连接状态优先级最高 (覆盖所有状态)
     wifi_mode_t wifi_mode = WiFi.getMode();
-    if (wifi_mode == WIFI_STA || wifi_mode == WIFI_AP_STA) {
+    if (wifi_mode == WIFI_STA) {
         if (WiFi.status() != WL_CONNECTED) {
             new_state = LEDState::WIFI_STA_CONNECTING;
         }
+    }
+    else if (wifi_mode == WIFI_AP) {
+            new_state = LEDState::WIFI_AP_CONNECTING;
     }
 
     if (current_sys_state != sys.state) {
@@ -1158,7 +1171,10 @@ void update_led_auto_control() {
             set_led_pattern(LED_PATTERN_SAFETY_DOOR, LED_PATTERN_SAFETY_DOOR_LEN);
             break;
         case LEDState::WIFI_STA_CONNECTING:
-            set_led_pattern(LED_PATTERN_WIFI_CONNECTING, LED_PATTERN_WIFI_CONNECTING_LEN);
+            set_led_pattern(LED_PATTERN_STA_CONNECTING, LED_PATTERN_STA_CONNECTING_LEN);
+            break;
+        case LEDState::WIFI_AP_CONNECTING:
+            set_led_pattern(LED_PATTERN_AP_CONNECTING, LED_PATTERN_AP_CONNECTING_LEN);
             break;
         case LEDState::CYCLE:
             set_led_breath();
@@ -1317,6 +1333,10 @@ void safety_monitor_task(void* parameter) {
 // ============================================================================
 
 void machine_init() {
+#if 0 // 测试恢复出厂设置
+    settings_restore(SettingsRestore::All);
+#endif
+
     HIM_LOG_INFO("Wainlux K11 HIM Custom Init (Full Rewrite)");
     HIM_LOG_INFO("Compiled: %s at %s", __DATE__, __TIME__);
     HIM_LOG_DEBUG("ESP32 SDK: %s", ESP.getSdkVersion());

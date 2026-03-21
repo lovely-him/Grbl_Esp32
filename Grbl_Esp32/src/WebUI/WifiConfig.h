@@ -67,7 +67,7 @@ namespace WebUI {
     static const int   DEFAULT_TELNET_STATE      = 1;
     static const int   DEFAULT_FILE_TRANSFER_PORT = 8081;
     static const int   DEFAULT_STA_IP_MODE       = DHCP_MODE;
-    static const int   DEFAULT_STA_RETRY_COUNT   = 0;
+    static const int   DEFAULT_STA_RETRY_COUNT   = 3;
     static const int   DEFAULT_STA_CONNECT_TIMEOUT_MS = 10000;
     static const int   DEFAULT_STA_RANDOM_MAC    = 0;
     static const char* HIDDEN_PASSWORD           = "********";

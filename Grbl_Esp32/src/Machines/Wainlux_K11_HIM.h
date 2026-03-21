@@ -38,20 +38,20 @@
 // ============================================================================
 // 参考: https://github.com/bdring/Grbl_Esp32/wiki/Setting-Up-the-I-O-Pins
 //
-// 📌 仅输入引脚 (无内部上拉/下拉电阻)
+// 仅输入引脚 (无内部上拉/下拉电阻)
 //    - 只能用于输入, 不能配置为输出
 //    - 没有内部上拉/下拉电阻, 如果悬空会产生随机电平
 //    - 必须有外部上拉或下拉电阻, 否则不要使用!
 //    - 适合用作限位开关, 传感器输入等有明确信号源的场景
 //
-//    GPIO_NUM_34    ✅ 本配置未使用
-//    GPIO_NUM_35    ✅ 本配置用作 Y 轴限位开关 (外部常闭开关提供电平)
-//    GPIO_NUM_36    ✅ 本配置用作 X 轴限位开关 (外部常闭开关提供电平)
-//    GPIO_NUM_37    ⚠️  通常不存在 (ESP32 芯片未引出)
-//    GPIO_NUM_38    ⚠️  通常不存在 (ESP32 芯片未引出)
-//    GPIO_NUM_39    ✅ 本配置用作 SD 卡 MISO 引脚 (输入引脚, 安全)
+//    GPIO_NUM_34    本配置未使用
+//    GPIO_NUM_35    本配置用作 Y 轴限位开关 (外部常闭开关提供电平)
+//    GPIO_NUM_36    本配置用作 X 轴限位开关 (外部常闭开关提供电平)
+//    GPIO_NUM_37    通常不存在 (ESP32 芯片未引出)
+//    GPIO_NUM_38    通常不存在 (ESP32 芯片未引出)
+//    GPIO_NUM_39    本配置用作 SD 卡 MISO 引脚 (输入引脚, 安全)
 //
-// ⚠️  启动相关引脚 (使用时需特别注意)
+// 启动相关引脚 (使用时需特别注意)
 //    - 这些引脚在上电启动时有特殊功能
 //    - 启动时的电平状态会影响 ESP32 的启动模式
 //    - 可以在启动后使用, 但要避免外部电路影响启动时的电平
@@ -68,27 +68,27 @@
 //
 //    GPIO_NUM_5     VSPI CS / 启动时序控制
 //                   - 上电时必须为高电平
-//                   - ✅ 本配置用作 Z 轴 STEP_PIN, 启动后可安全使用
+//                   - 本配置用作 Z 轴 STEP_PIN, 启动后可安全使用
 //
 //    GPIO_NUM_12    Flash 电压选择 (MTDI)
 //                   - 上电时电平决定 Flash 工作电压
 //                   - 默认内部下拉 (选择 3.3V Flash)
-//                   - ✅ 本配置用作 SD 卡 MISO (输入引脚, 安全)
-//                   - ⚠️  不要外部上拉, 否则可能导致 Flash 工作异常
+//                   - 本配置用作 SD 卡 MISO (输入引脚, 安全)
+//                   - 不要外部上拉, 否则可能导致 Flash 工作异常
 //
 //    GPIO_NUM_15    调试输出 (MTDO) / HSPI CS
 //                   - 启动时输出调试日志
 //                   - 上电时必须为高电平
-//                   - ✅ 本配置用作 SD 卡 CS, 启动后可安全使用
+//                   - 本配置用作 SD 卡 CS, 启动后可安全使用
 //
-// 🔒 串口调试引脚 (强烈不推荐使用)
+// 串口调试引脚 (强烈不推荐使用)
 //    - 用于 UART0 串口通信, 是主要的调试和通信接口
 //    - 占用这些引脚会导致无法串口调试和烧录
 //
 //    GPIO_NUM_1     UART0 TX (串口发送) - 禁止使用
 //    GPIO_NUM_3     UART0 RX (串口接收) - 禁止使用
 //
-// 🔒 Flash 专用引脚 (禁止使用)
+// Flash 专用引脚 (禁止使用)
 //    - 连接到 ESP32 内部 SPI Flash 存储器
 //    - 占用这些引脚会导致系统无法启动
 //
@@ -99,7 +99,7 @@
 //    GPIO_NUM_10    Flash SD3  - 禁止使用
 //    GPIO_NUM_11    Flash CMD  - 禁止使用
 //
-// ❌ 不存在的引脚编号
+// 不存在的引脚编号
 //    - ESP32 芯片没有这些 GPIO 编号
 //    - 代码中使用会导致编译错误或运行时异常
 //
@@ -112,13 +112,13 @@
 //    GPIO_NUM_37    ESP32 上不存在 (未引出)
 //    GPIO_NUM_38    ESP32 上不存在 (未引出)
 //
-// ✅ 推荐使用的通用 GPIO 引脚
+// 推荐使用的通用 GPIO 引脚
 //    - 这些引脚没有启动限制, 可以安全用于各种功能
 //    - 启动后可自由配置为输入或输出
 //
 //    GPIO_NUM_4, 13, 14, 16, 17, 18, 19, 21, 22, 23, 25, 26, 27, 32, 33
 //
-// 📚 参考资料
+// 参考资料
 //    - ESP32 技术参考手册: https://www.espressif.com/sites/default/files/documentation/esp32_technical_reference_manual_en.pdf
 //    - ESP32 硬件设计指南: https://www.espressif.com/sites/default/files/documentation/esp32_hardware_design_guidelines_en.pdf
 //    - Grbl_ESP32 Wiki: https://github.com/bdring/Grbl_Esp32/wiki/Setting-Up-the-I-O-Pins
@@ -132,9 +132,9 @@
 #define MACHINE_NAME            "Genmitsu_Kiosk_V07_HIM"
 #define MACHINE_NAME_C          "Genmitsu_Kiosk_C_V07_HIM"
 
-// STA 模式连接配置 (连接到路由器)
-#define CONNECT_TO_SSID         "MT3000"
-#define SSID_PASSWORD           "88888888"
+// STA 模式连接配置 (连接到路由器) 如果定义该宏定义, 默认WiFi模式会自动设置为STA模式
+// #define CONNECT_TO_SSID         "MT3000"
+// #define SSID_PASSWORD           "88888888"
 
 // AP 模式创建配置 (创建热点)
 #define CONNECT_TO_AP_SSID      "Genmitsu_Kiosk"

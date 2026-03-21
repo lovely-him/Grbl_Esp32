@@ -9,6 +9,26 @@
 
 ---
 
+## 2026-03-21
+
+### 新功能 (Features)
+- feat(him): 新增 WIFI_AP_CONNECTING LED 状态, 区分 STA 连接和 AP 配网模式
+  - STA 连接中: 慢速等间隔闪烁 (500ms 周期)
+  - AP 配网中: 快速 3 次闪烁 (100ms 间隔)
+
+### 优化改进 (Optimizations)
+- opt(him): 超长按 10s 改为直接恢复出厂设置 (settings_restore All)
+- opt(him): 安全门 LED 模式改为等间隔快速闪烁 (200ms 周期)
+- opt(wifi): WiFi STA 重试次数从 0 改为 3, 提升连接稳定性
+- opt(him): 注释掉默认 STA WiFi 连接配置, 默认使用 AP 模式
+
+### 重构 (Refactoring)
+- refactor(him): 重命名 LED_PATTERN_WIFI_CONNECTING 为 LED_PATTERN_STA_CONNECTING
+- refactor(him): 删除注释中的 emoji 字符, 提高跨平台兼容性
+- refactor(build): 重构 merge_firmware.bat, 自动检测 framework 路径替代硬编码
+
+---
+
 ## 2026-02-11
 
 ### 新功能 (Features)

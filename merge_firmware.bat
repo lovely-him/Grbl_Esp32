@@ -19,10 +19,53 @@ if not exist "%IDF_PYTHON%" (
     exit /b 1
 )
 
-REM Set file paths
-set BOOTLOADER=%USERPROFILE%\.platformio\packages\framework-arduinoespressif32\tools\sdk\bin\bootloader_dio_80m.bin
+REM Check if project is built
+if not exist ".pio\build\release\.sconsign311.dblite" (
+    echo ERROR: Build database not found
+    echo Please build the project first: pio run -e release
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Auto-detect framework path from build output
+echo Detecting framework path from build output...
+for /f "delims=" %%i in ('strings .pio\build\release\.sconsign311.dblite 2^>nul ^| findstr /C:"framework-arduinoespressif32" 2^>nul ^| findstr /C:"tools" 2^>nul ^| head -1 2^>nul') do (
+    set FRAMEWORK_LINE=%%i
+)
+
+if not defined FRAMEWORK_LINE (
+    echo ERROR: Could not detect framework path from build output
+    echo Please ensure the project is built: pio run -e release
+    echo.
+    pause
+    exit /b 1
+)
+
+REM Extract framework directory path
+REM Example: C:/Users/admin/.platformio/packages/framework-arduinoespressif32@3.10004.210126/tools/...
+REM We need: C:\Users\admin\.platformio\packages\framework-arduinoespressif32@3.10004.210126
+
+REM Use PowerShell to extract the path with regex
+for /f "delims=" %%i in ('powershell -Command "$line='%FRAMEWORK_LINE%'; if($line -match 'C:/Users/[^/]+/\.platformio/packages/framework-arduinoespressif32[^/]*') { $matches[0] -replace '/','\' }"') do (
+    set FRAMEWORK_DIR=%%i
+)
+
+if not defined FRAMEWORK_DIR (
+    echo ERROR: Failed to extract framework path
+    echo Raw line: %FRAMEWORK_LINE%
+    echo.
+    pause
+    exit /b 1
+)
+
+echo Found framework: %FRAMEWORK_DIR%
+echo.
+
+REM Set file paths using detected framework
+set BOOTLOADER=%FRAMEWORK_DIR%\tools\sdk\bin\bootloader_dio_80m.bin
 set PARTITIONS=.pio\build\release\partitions.bin
-set BOOT_APP0=%USERPROFILE%\.platformio\packages\framework-arduinoespressif32\tools\partitions\boot_app0.bin
+set BOOT_APP0=%FRAMEWORK_DIR%\tools\partitions\boot_app0.bin
 set FIRMWARE=.pio\build\release\firmware.bin
 set OUTPUT=.pio\build\release\firmware_merged.bin
 
@@ -62,10 +105,10 @@ echo Running esptool merge_bin...
 echo Using Python: %IDF_PYTHON%
 echo.
 echo Merging 4 files:
-echo   0x1000  bootloader_dio_80m.bin (DIO mode, 80MHz)
-echo   0x8000  partitions.bin
-echo   0xe000  boot_app0.bin (OTA selector)
-echo   0x10000 firmware.bin
+echo   0x1000  %BOOTLOADER%
+echo   0x8000  %PARTITIONS%
+echo   0xe000  %BOOT_APP0%
+echo   0x10000 %FIRMWARE%
 echo.
 "%IDF_PYTHON%" -m esptool --chip esp32 merge_bin -o "%OUTPUT%" --flash_mode dio --flash_freq 80m --flash_size 4MB 0x1000 "%BOOTLOADER%" 0x8000 "%PARTITIONS%" 0xe000 "%BOOT_APP0%" 0x10000 "%FIRMWARE%"
 
