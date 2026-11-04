@@ -120,16 +120,7 @@ Grbl_Esp32/src/WebUI/
 ### 2. 运行测试
 
 ```bash
-# 激活 Python 环境并运行测试
-source .claude/skills/python-runner/activate-python-env.sh
 python doc/md/tcp_socket/tcp_auto_test.py
-```
-
-或者使用 python-runner skill：
-
-```bash
-# 在项目根目录执行
-python-runner doc/md/tcp_socket/tcp_auto_test.py
 ```
 
 ## 测试脚本
